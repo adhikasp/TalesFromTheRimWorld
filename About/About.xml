@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+    <name>Tales from the RimWorld</name>
+    <author>adhikasp</author>
+    <packageId>adhikasp.TalesFromTheRimWorld</packageId>
+    <supportedVersions>
+        <li>1.4</li>
+        <li>1.5</li>
+        <li>1.6</li>
+    </supportedVersions>
+    <description>An AI author who weaves your colony's struggles into an unfolding narrative.
+
+Transform RimWorld from a "things happen to you" simulation into a personalized narrative experience where an AI author crafts a story specifically for YOUR colony.
+
+Features:
+• AI-generated flavor text for vanilla events
+• Choice dilemmas with meaningful consequences
+• Persistent story journal tracking your colony's saga
+• Customizable LLM settings via OpenRouter API
+
+Select "The Narrator" as your storyteller to begin your story.</description>
+    <modDependencies>
+        <li>
+            <packageId>brrainz.harmony</packageId>
+            <displayName>Harmony</displayName>
+        </li>
+    </modDependencies>
+    <loadAfter>
+        <li>brrainz.harmony</li>
+    </loadAfter>
+</ModMetaData>

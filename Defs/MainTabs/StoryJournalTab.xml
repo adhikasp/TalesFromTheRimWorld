@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <!-- Story Journal main tab button -->
+  <MainButtonDef>
+    <defName>StoryJournal</defName>
+    <label>Story</label>
+    <description>View the story journal containing narrative entries about your colony's saga.</description>
+    <tabWindowClass>AINarrator.MainTabWindow_StoryJournal</tabWindowClass>
+    <order>45</order>
+    <validWithoutMap>false</validWithoutMap>
+    <buttonVisible>true</buttonVisible>
+  </MainButtonDef>
+</Defs>
+

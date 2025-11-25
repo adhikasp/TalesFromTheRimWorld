@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <!-- The Narrator Storyteller Definition -->
+  <!-- ParentName="BaseStoryteller" inherits required population curves and other base properties -->
+  <StorytellerDef ParentName="BaseStoryteller">
+    <defName>LLMNarrator</defName>
+    <label>The Narrator</label>
+    <description>An AI author who weaves your colony's struggles into an unfolding narrative. Events carry meaning, context, and consequence.
+
+The Narrator observes your colonists and crafts stories around their triumphs and tragedies. Expect atmospheric descriptions, meaningful choices, and a persistent journal of your colony's saga.
+
+Requires: OpenRouter API key (configure in Mod Settings)
+
+Difficulty affects combat and survival challenges as normal, but The Narrator adds narrative depth to every major event.</description>
+    <listOrder>40</listOrder>
+    <listVisible>true</listVisible>
+    
+    <!-- Custom storyteller portrait -->
+    <portraitLarge>UI/HeroArt/Storytellers/Narrator</portraitLarge>
+    <portraitTiny>UI/HeroArt/Storytellers/NarratorTiny</portraitTiny>
+    
+    <!-- Base storyteller behavior on Cassandra Classic -->
+    <comps>
+      <!-- Classic intro handles the initial tutorial-style events -->
+      <li Class="StorytellerCompProperties_ClassicIntro"/>
+      
+      <!-- Population intent - standard colonist recruitment -->
+      <li Class="StorytellerCompProperties_OnOffCycle">
+        <category>OrbitalVisitor</category>
+        <onDays>3</onDays>
+        <offDays>4</offDays>
+        <minSpacingDays>1</minSpacingDays>
+        <numIncidentsRange>1~2</numIncidentsRange>
+        <acceptFractionByDaysPassedCurve>
+          <points>
+            <li>(0, 0)</li>
+            <li>(15, 1)</li>
+          </points>
+        </acceptFractionByDaysPassedCurve>
+      </li>
+      
+      <!-- Wanderers and refugees -->
+      <li Class="StorytellerCompProperties_OnOffCycle">
+        <category>Misc</category>
+        <onDays>5</onDays>
+        <offDays>8</offDays>
+        <minSpacingDays>2</minSpacingDays>
+        <numIncidentsRange>1~2</numIncidentsRange>
+        <acceptFractionByDaysPassedCurve>
+          <points>
+            <li>(0, 0)</li>
+            <li>(10, 1)</li>
+          </points>
+        </acceptFractionByDaysPassedCurve>
+      </li>
+      
+      <!-- Threat events - small raids, manhunters, etc. -->
+      <li Class="StorytellerCompProperties_OnOffCycle">
+        <category>ThreatSmall</category>
+        <onDays>4</onDays>
+        <offDays>7</offDays>
+        <minSpacingDays>2</minSpacingDays>
+        <numIncidentsRange>1~1</numIncidentsRange>
+        <acceptPercentFactorPerThreatPointsCurve>
+          <points>
+            <li>(0, 1)</li>
+            <li>(500, 0.8)</li>
+            <li>(2000, 0.5)</li>
+          </points>
+        </acceptPercentFactorPerThreatPointsCurve>
+      </li>
+      
+      <!-- Large threats -->
+      <li Class="StorytellerCompProperties_OnOffCycle">
+        <category>ThreatBig</category>
+        <onDays>8</onDays>
+        <offDays>12</offDays>
+        <minSpacingDays>6</minSpacingDays>
+        <numIncidentsRange>1~1</numIncidentsRange>
+        <forceRaidEnemyBeforeDaysPassed>14</forceRaidEnemyBeforeDaysPassed>
+        <acceptPercentFactorPerThreatPointsCurve>
+          <points>
+            <li>(0, 1)</li>
+            <li>(1000, 0.7)</li>
+            <li>(4000, 0.4)</li>
+          </points>
+        </acceptPercentFactorPerThreatPointsCurve>
+      </li>
+      
+      <!-- Ship chunk drops -->
+      <li Class="StorytellerCompProperties_ShipChunkDrop"/>
+      
+      <!-- Disease events -->
+      <li Class="StorytellerCompProperties_Disease">
+        <category>DiseaseHuman</category>
+        <minDaysPassed>8</minDaysPassed>
+      </li>
+      <li Class="StorytellerCompProperties_Disease">
+        <category>DiseaseAnimal</category>
+        <minDaysPassed>8</minDaysPassed>
+      </li>
+      
+      <!-- Home misc events -->
+      <li Class="StorytellerCompProperties_CategoryMTB">
+        <category>Misc</category>
+        <allowedTargetTags>
+          <li>Map_PlayerHome</li>
+        </allowedTargetTags>
+        <minDaysPassed>5</minDaysPassed>
+        <mtbDays>3</mtbDays>
+      </li>
+      
+      <!-- Random events (cargo pods, meteorites, etc.) -->
+      <li Class="StorytellerCompProperties_RandomMain">
+        <mtbDays>3</mtbDays>
+        <allowedTargetTags>
+          <li>Map_RaidBeacon</li>
+          <li>Map_PlayerHome</li>
+        </allowedTargetTags>
+        <maxThreatBigIntervalDays>13</maxThreatBigIntervalDays>
+        <minIncChancePopulationIntentFactor>0.2</minIncChancePopulationIntentFactor>
+        <randomPointsFactorRange>0.75~1.25</randomPointsFactorRange>
+        <skipThreatBigIfRaidBeacon>true</skipThreatBigIfRaidBeacon>
+        <categoryWeights>
+          <Misc>3.5</Misc>
+          <OrbitalVisitor>1</OrbitalVisitor>
+          <ThreatBig>1</ThreatBig>
+          <ThreatSmall>0.5</ThreatSmall>
+          <FactionArrival>1</FactionArrival>
+          <ShipChunkDrop>0.5</ShipChunkDrop>
+        </categoryWeights>
+      </li>
+      
+      <!-- Ally/neutral faction interactions -->
+      <li Class="StorytellerCompProperties_FactionInteraction">
+        <incident>RaidFriendly</incident>
+        <baseIncidentsPerYear>20</baseIncidentsPerYear>
+        <minSpacingDays>0.4</minSpacingDays>
+        <fullAlliesOnly>true</fullAlliesOnly>
+        <minDanger>High</minDanger>
+      </li>
+      <li Class="StorytellerCompProperties_FactionInteraction">
+        <incident>TraderCaravanArrival</incident>
+        <minDaysPassed>4</minDaysPassed>
+        <baseIncidentsPerYear>9</baseIncidentsPerYear>
+        <minSpacingDays>3</minSpacingDays>
+        <allowedTargetTags>
+          <li>Map_PlayerHome</li>
+        </allowedTargetTags>
+      </li>
+      <li Class="StorytellerCompProperties_FactionInteraction">
+        <incident>VisitorGroup</incident>
+        <minDaysPassed>3</minDaysPassed>
+        <baseIncidentsPerYear>4</baseIncidentsPerYear>
+        <minSpacingDays>5</minSpacingDays>
+        <allowedTargetTags>
+          <li>Map_PlayerHome</li>
+        </allowedTargetTags>
+      </li>
+      <li Class="StorytellerCompProperties_FactionInteraction">
+        <incident>TravelerGroup</incident>
+        <minDaysPassed>1</minDaysPassed>
+        <baseIncidentsPerYear>6</baseIncidentsPerYear>
+        <minSpacingDays>1</minSpacingDays>
+        <allowedTargetTags>
+          <li>Map_PlayerHome</li>
+        </allowedTargetTags>
+      </li>
+      
+      <!-- Caravan / temp map events -->
+      <li Class="StorytellerCompProperties_CategoryIndividualMTBByBiome">
+        <category>Misc</category>
+        <allowedTargetTags>
+          <li>Caravan</li>
+          <li>Map_TempIncident</li>
+        </allowedTargetTags>
+      </li>
+      <li Class="StorytellerCompProperties_CategoryIndividualMTBByBiome">
+        <category>ThreatSmall</category>
+        <applyCaravanVisibility>true</applyCaravanVisibility>
+        <allowedTargetTags>
+          <li>Caravan</li>
+          <li>Map_TempIncident</li>
+        </allowedTargetTags>
+      </li>
+      <li Class="StorytellerCompProperties_CategoryIndividualMTBByBiome">
+        <category>ThreatBig</category>
+        <applyCaravanVisibility>true</applyCaravanVisibility>
+        <allowedTargetTags>
+          <li>Caravan</li>
+          <li>Map_TempIncident</li>
+        </allowedTargetTags>
+      </li>
+      
+      <!-- Orbital trader -->
+      <li Class="StorytellerCompProperties_OnOffCycle">
+        <incident>OrbitalTraderArrival</incident>
+        <onDays>7</onDays>
+        <offDays>4</offDays>
+        <numIncidentsRange>1</numIncidentsRange>
+      </li>
+      
+      <!-- Triggered events -->
+      <li Class="StorytellerCompProperties_Triggered">
+        <incident>StrangerInBlackJoin</incident>
+        <delayTicks>180</delayTicks>
+      </li>
+      
+      <!-- AI Narrator's custom storyteller component for choice events -->
+      <li Class="AINarrator.StorytellerCompProperties_LLM">
+        <minDaysPassed>3</minDaysPassed>
+      </li>
+    </comps>
+  </StorytellerDef>
+</Defs>
+

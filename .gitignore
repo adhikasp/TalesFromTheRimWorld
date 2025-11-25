@@ -1,0 +1,20 @@
+# Build outputs
+Assemblies/*.dll
+Assemblies/*.pdb
+Assemblies/*.xml
+
+# .NET build directories
+bin/
+obj/
+Source/bin/
+Source/obj/
+
+# IDE files
+.vs/
+*.user
+*.suo
+
+# OS files
+.DS_Store
+Thumbs.db
+
