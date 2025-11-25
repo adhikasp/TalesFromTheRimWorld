@@ -18,3 +18,4 @@ Source/obj/
 .DS_Store
 Thumbs.db
 
+.cursor/*/*-local.md
