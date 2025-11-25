@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using RimWorld;
 using Verse;
@@ -5,7 +7,7 @@ using Verse;
 namespace AINarrator
 {
     /// <summary>
-    /// Builds system prompts and formats context for LLM requests.
+    /// Builds system prompts and formats comprehensive context for LLM requests.
     /// </summary>
     public static class PromptBuilder
     {
@@ -19,12 +21,15 @@ namespace AINarrator
 Guidelines:
 - Write 2-4 evocative sentences maximum
 - Use present tense and dramatic tone
-- Reference colonist names and colony details when relevant
+- Reference colonist names and relationships when relevant
+- Reference past events, deaths, and battles when they connect to current events
+- Create atmosphere matching the biome, season, weather, and time of day
 - Explain WHY the event is happening in story terms
-- Create atmosphere matching the biome and season
 - Never reveal mechanical game details beyond what the player will see
 - Never break the fourth wall or mention it's a game
 - Match the tone to the event (raids are threatening, gifts are hopeful, etc.)
+- Use character traits, backstories, and relationships to add depth
+- Reference recent social dynamics when relevant (romances, rivalries, friendships)
 
 Response format: Just the narrative text, no formatting or prefixes.";
         }
@@ -62,9 +67,13 @@ Available consequence types:
 Guidelines:
 - Create morally interesting dilemmas relevant to colony survival
 - Balance risk and reward across options
-- Reference colonist names and current situation
+- Reference specific colonist names, traits, and relationships
+- Tie choices to recent events, deaths, or social dynamics when possible
+- Use the colony's history (past battles, fallen colonists) for emotional weight
 - Make choices feel meaningful but not game-breaking
-- Keep consequences immediate (no delayed effects)";
+- Keep consequences immediate (no delayed effects)
+- Consider current faction relations when choices involve outsiders
+- Use prisoner situations, animal bonds, or resource scarcity for drama";
         }
         
         /// <summary>
@@ -78,6 +87,10 @@ Guidelines:
             sb.AppendLine(ColonyStateCollector.GetNarrationContext(parms, incident));
             sb.AppendLine();
             sb.AppendLine("TASK: Write atmospheric flavor text for this event. Make it feel like part of an unfolding story.");
+            sb.AppendLine("- Reference specific colonists by name when relevant");
+            sb.AppendLine("- Consider recent events and social dynamics");
+            sb.AppendLine("- Match the atmosphere to current weather and time of day");
+            sb.AppendLine("- If colonists have died recently, acknowledge the lingering grief when appropriate");
             
             return sb.ToString();
         }
@@ -93,8 +106,105 @@ Guidelines:
             sb.AppendLine(ColonyStateCollector.GetChoiceContext());
             sb.AppendLine();
             sb.AppendLine("TASK: Create a choice dilemma relevant to this colony's current situation. Output as JSON.");
+            sb.AppendLine();
+            sb.AppendLine("Consider these story hooks:");
+            
+            // Add dynamic suggestions based on colony state
+            var suggestions = GetChoiceSuggestions();
+            foreach (var suggestion in suggestions)
+            {
+                sb.AppendLine($"- {suggestion}");
+            }
             
             return sb.ToString();
+        }
+        
+        /// <summary>
+        /// Generate dynamic suggestions for choice events based on colony state.
+        /// </summary>
+        private static List<string> GetChoiceSuggestions()
+        {
+            var suggestions = new List<string>();
+            var snapshot = ColonyStateCollector.GetSnapshot();
+            
+            // Recent deaths provide drama
+            if (snapshot.DeathRecords.Any())
+            {
+                suggestions.Add("A choice related to honoring the fallen or their unfinished business");
+            }
+            
+            // Prisoner-based choices
+            if (snapshot.Prisoners.Any())
+            {
+                var prisoner = snapshot.Prisoners.First();
+                suggestions.Add($"A moral dilemma involving prisoner {prisoner.Name}");
+            }
+            
+            // Relationship drama
+            var colonistsWithRelations = snapshot.ColonistDetails.Where(c => c.Relationships.Any()).ToList();
+            if (colonistsWithRelations.Any())
+            {
+                var colonist = colonistsWithRelations.First();
+                var relation = colonist.Relationships.First();
+                suggestions.Add($"A choice involving {colonist.ShortName}'s relationship ({relation})");
+            }
+            
+            // Resource scarcity
+            if (snapshot.Resources.TryGetValue("Food", out string food) && food.Contains("days"))
+            {
+                if (float.TryParse(food.Split(' ')[0], out float days) && days < 5)
+                {
+                    suggestions.Add("A difficult choice about food or rationing");
+                }
+            }
+            
+            // Faction relations
+            var hostileFactions = snapshot.FactionRelations.Where(f => f.IsHostile).ToList();
+            var friendlyFactions = snapshot.FactionRelations.Where(f => f.Goodwill > 50).ToList();
+            if (hostileFactions.Any())
+            {
+                suggestions.Add($"A choice involving the hostile {hostileFactions.First().Name}");
+            }
+            if (friendlyFactions.Any())
+            {
+                suggestions.Add($"An opportunity involving allied {friendlyFactions.First().Name}");
+            }
+            
+            // Active threats
+            if (snapshot.ActiveThreats.Any())
+            {
+                suggestions.Add($"A strategic choice regarding: {snapshot.ActiveThreats.First()}");
+            }
+            
+            // Mental states
+            var stressedColonists = snapshot.ColonistDetails.Where(c => c.MentalState != "stable").ToList();
+            if (stressedColonists.Any())
+            {
+                suggestions.Add($"A choice involving {stressedColonists.First().ShortName} who is {stressedColonists.First().MentalState}");
+            }
+            
+            // Bonded animals
+            var bondedAnimals = snapshot.Animals.Where(a => a.Contains("bonded")).ToList();
+            if (bondedAnimals.Any())
+            {
+                suggestions.Add("A choice involving a bonded animal");
+            }
+            
+            // Notable items
+            if (snapshot.NotableItems.Any())
+            {
+                suggestions.Add("A choice involving a legendary or valuable item");
+            }
+            
+            // Default suggestions
+            if (!suggestions.Any())
+            {
+                suggestions.Add("A stranger arrives with an unusual request");
+                suggestions.Add("A moral dilemma about colony resources");
+                suggestions.Add("An opportunity that may bring risk or reward");
+            }
+            
+            return suggestions.Take(5).ToList();
         }
         
         /// <summary>
@@ -104,40 +214,50 @@ Guidelines:
         {
             if (incident == null) return "Events unfold as fate decrees...";
             
-            // Category-based fallbacks
+            var snapshot = ColonyStateCollector.GetSnapshot();
+            string colony = snapshot.ColonyName;
+            string weather = snapshot.Environment?.Weather ?? "clear";
+            string time = snapshot.Environment?.TimeOfDay ?? "day";
+            
+            // Category-based fallbacks with atmosphere
             if (incident.category == IncidentCategoryDefOf.ThreatBig ||
                 incident.category == IncidentCategoryDefOf.ThreatSmall)
             {
-                return "Danger approaches the colony. The colonists ready themselves for what comes.";
+                if (snapshot.DeathRecords.Any())
+                {
+                    var recentDeath = snapshot.DeathRecords.Last();
+                    return $"Danger approaches {colony}. The colonists steel themselves, memories of {recentDeath.Split('(')[0].Trim()}'s sacrifice still fresh.";
+                }
+                return $"Under the {weather} {time} sky, danger approaches {colony}. The colonists ready themselves for what comes.";
             }
             
             if (incident.defName.Contains("Visitor") || incident.defName.Contains("Trade"))
             {
-                return "Visitors arrive at the colony gates, their intentions yet unknown.";
+                return $"Visitors arrive at {colony}'s gates under the {weather} sky, their intentions yet unknown.";
             }
             
             if (incident.defName.Contains("Join") || incident.defName.Contains("Wanderer"))
             {
-                return "A stranger appears on the horizon, seeking shelter from the harsh world.";
+                return $"A stranger appears on the horizon, seeking shelter from the harsh world. {colony} may have a new soul.";
             }
             
             if (incident.defName.Contains("Eclipse") || incident.defName.Contains("Aurora") ||
                 incident.defName.Contains("Solar") || incident.defName.Contains("Cold"))
             {
-                return "The skies shift, heralding a change in fortune for the colony.";
+                return $"The skies above {colony} shift, heralding a change in fortune for the colony.";
             }
             
             if (incident.defName.Contains("Crop") || incident.defName.Contains("Blight"))
             {
-                return "The fields whisper of troubles to come.";
+                return $"The fields of {colony} whisper of troubles to come.";
             }
             
             if (incident.defName.Contains("Pod") || incident.defName.Contains("Ship"))
             {
-                return "Something falls from the sky, a gift from the stars or a harbinger of doom.";
+                return $"Something falls from the sky above {colony}, a gift from the stars or a harbinger of doom.";
             }
             
-            return $"The story continues as {incident.label?.ToLower() ?? "events"} unfold...";
+            return $"The story of {colony} continues as {incident.label?.ToLower() ?? "events"} unfold...";
         }
         
         /// <summary>
@@ -146,14 +266,51 @@ Guidelines:
         public static ChoiceEvent GetFallbackChoice()
         {
             var snapshot = ColonyStateCollector.GetSnapshot();
-            string colonistName = snapshot.Colonists.Count > 0 
-                ? snapshot.Colonists[0].Split('(')[0].Trim() 
+            string colonistName = snapshot.ColonistDetails.Count > 0 
+                ? snapshot.ColonistDetails[0].ShortName 
                 : "A colonist";
+            
+            // Try to make the fallback contextual
+            if (snapshot.Prisoners.Any())
+            {
+                var prisoner = snapshot.Prisoners.First();
+                return new ChoiceEvent
+                {
+                    NarrativeText = $"The prisoner {prisoner.Name} scratches a message into their cell wall. {colonistName} notices it reads: 'I know where supplies are hidden.' Do you investigate?",
+                    Options = new List<ChoiceOption>
+                    {
+                        new ChoiceOption
+                        {
+                            Label = "Investigate the lead",
+                            HintText = "Might find supplies, might be a trap",
+                            Consequence = new ChoiceConsequence
+                            {
+                                Type = "spawn_items",
+                                Parameters = new Dictionary<string, object>
+                                {
+                                    { "item", "Silver" },
+                                    { "count", 150 }
+                                }
+                            }
+                        },
+                        new ChoiceOption
+                        {
+                            Label = "Ignore it",
+                            HintText = "Safe, but opportunity lost",
+                            Consequence = new ChoiceConsequence
+                            {
+                                Type = "nothing",
+                                Parameters = new Dictionary<string, object>()
+                            }
+                        }
+                    }
+                };
+            }
             
             return new ChoiceEvent
             {
-                NarrativeText = $"A merchant passes by the colony, offering a deal. {colonistName} could negotiate, but the merchant seems nervous, glancing at the horizon...",
-                Options = new System.Collections.Generic.List<ChoiceOption>
+                NarrativeText = $"A merchant passes by {snapshot.ColonyName}, offering a deal. {colonistName} could negotiate, but the merchant seems nervous, glancing at the horizon...",
+                Options = new List<ChoiceOption>
                 {
                     new ChoiceOption
                     {
@@ -162,7 +319,7 @@ Guidelines:
                         Consequence = new ChoiceConsequence
                         {
                             Type = "spawn_items",
-                            Parameters = new System.Collections.Generic.Dictionary<string, object>
+                            Parameters = new Dictionary<string, object>
                             {
                                 { "item", "Silver" },
                                 { "count", 100 }
@@ -176,7 +333,7 @@ Guidelines:
                         Consequence = new ChoiceConsequence
                         {
                             Type = "nothing",
-                            Parameters = new System.Collections.Generic.Dictionary<string, object>()
+                            Parameters = new Dictionary<string, object>()
                         }
                     }
                 }
@@ -200,6 +357,28 @@ Guidelines:
             
             return sb.ToString();
         }
+        
+        /// <summary>
+        /// Build a context summary for debugging or logs.
+        /// </summary>
+        public static string BuildContextSummary()
+        {
+            var snapshot = ColonyStateCollector.GetSnapshot();
+            var sb = new StringBuilder();
+            
+            sb.AppendLine($"=== Context Summary for {snapshot.ColonyName} ===");
+            sb.AppendLine($"Day {snapshot.ColonyAgeDays}, {snapshot.Season}, {snapshot.Biome}");
+            sb.AppendLine($"Population: {snapshot.ColonistCount} colonists, {snapshot.PrisonerCount} prisoners");
+            sb.AppendLine($"Colonist details collected: {snapshot.ColonistDetails.Count}");
+            sb.AppendLine($"Recent interactions: {snapshot.RecentInteractions.Count}");
+            sb.AppendLine($"Recent activities: {snapshot.RecentActivities.Count}");
+            sb.AppendLine($"Faction relations: {snapshot.FactionRelations.Count}");
+            sb.AppendLine($"Death records: {snapshot.DeathRecords.Count}");
+            sb.AppendLine($"Battle records: {snapshot.BattleHistory.Count}");
+            sb.AppendLine($"Active threats: {snapshot.ActiveThreats.Count}");
+            sb.AppendLine($"Notable items: {snapshot.NotableItems.Count}");
+            
+            return sb.ToString();
+        }
     }
 }
-
