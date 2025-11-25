@@ -58,10 +58,16 @@ Response format (JSON):
 
 Available consequence types:
 - ""spawn_pawn"": Add a colonist/refugee (Parameters: {""kind"": ""Colonist"" or ""Refugee""})
-- ""spawn_items"": Drop resources (Parameters: {""item"": ""Silver/Medicine/Steel/Component"", ""count"": 50-200})
+- ""spawn_items"": Drop resources (Parameters: {""item"": ""Silver/Gold/Steel/Plasteel/Component/Medicine/Food/Wood/Uranium/Jade"", ""count"": 50-200})
 - ""mood_effect"": Colony mood change (Parameters: {""type"": ""positive/negative"", ""severity"": 1-3})
 - ""faction_relation"": Change faction relations (Parameters: {""change"": -20 to +20})
-- ""trigger_raid"": Small attack (Parameters: {""severity"": ""small/medium""})
+- ""trigger_raid"": Enemy attack (Parameters: {""severity"": ""small/medium/large""})
+- ""weather_change"": Change weather (Parameters: {""weather"": ""clear/rain/fog/snow/blizzard""})
+- ""give_inspiration"": Inspire a colonist (Parameters: {""type"": ""shooting/melee/craft/social/surgery/trade/random"", ""colonist"": ""optional name""})
+- ""spawn_trader"": Spawn traders (Parameters: {""type"": ""caravan"" or ""orbital""})
+- ""spawn_animal"": Spawn animals (Parameters: {""animal"": ""dog/cat/wolf/bear/muffalo/thrumbo/random"", ""behavior"": ""tame/manhunter"", ""count"": 1-5})
+- ""heal_colonist"": Heal a colonist (Parameters: {""colonist"": ""optional name"", ""type"": ""injuries/all""})
+- ""skill_xp"": Grant skill experience (Parameters: {""skill"": ""shooting/melee/construction/medicine/cooking/crafting/social/research/random"", ""amount"": 3000-10000, ""colonist"": ""optional name""})
 - ""nothing"": No mechanical effect
 
 Guidelines:

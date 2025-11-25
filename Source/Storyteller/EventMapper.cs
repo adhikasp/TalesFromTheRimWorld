@@ -43,6 +43,30 @@ namespace AINarrator
                         TriggerRaid(consequence.Parameters, map);
                         break;
                         
+                    case "weather_change":
+                        ChangeWeather(consequence.Parameters, map);
+                        break;
+                        
+                    case "give_inspiration":
+                        GiveInspiration(consequence.Parameters, map);
+                        break;
+                        
+                    case "spawn_trader":
+                        SpawnTrader(consequence.Parameters, map);
+                        break;
+                        
+                    case "spawn_animal":
+                        SpawnAnimal(consequence.Parameters, map);
+                        break;
+                        
+                    case "heal_colonist":
+                        HealColonist(consequence.Parameters, map);
+                        break;
+                        
+                    case "skill_xp":
+                        GrantSkillXP(consequence.Parameters, map);
+                        break;
+                        
                     case "nothing":
                     default:
                         // No effect
@@ -292,6 +316,398 @@ namespace AINarrator
                 };
                 return thought ?? ThoughtDefOf.AteRawFood;
             }
+        }
+        
+        private static void ChangeWeather(Dictionary<string, object> parameters, Map map)
+        {
+            string weatherType = GetParam<string>(parameters, "weather", "clear");
+            
+            WeatherDef weatherDef = GetWeatherDef(weatherType);
+            if (weatherDef == null)
+            {
+                Log.Warning($"[AI Narrator] Unknown weather: {weatherType}, defaulting to clear");
+                weatherDef = WeatherDefOf.Clear;
+            }
+            
+            map.weatherManager.TransitionTo(weatherDef);
+            
+            Messages.Message($"The weather shifts... {weatherDef.label}.", MessageTypeDefOf.NeutralEvent);
+            
+            Log.Message($"[AI Narrator] Changed weather to {weatherDef.defName}");
+        }
+        
+        private static WeatherDef GetWeatherDef(string weatherType)
+        {
+            return weatherType?.ToLower() switch
+            {
+                "clear" => WeatherDefOf.Clear,
+                "rain" or "rainy" or "rainstorm" => DefDatabase<WeatherDef>.GetNamedSilentFail("Rain") ?? WeatherDefOf.Clear,
+                "fog" or "foggy" => WeatherDefOf.Fog,
+                "snow" => DefDatabase<WeatherDef>.GetNamedSilentFail("SnowGentle") ?? WeatherDefOf.Clear,
+                "snowhard" or "blizzard" => DefDatabase<WeatherDef>.GetNamedSilentFail("SnowHard") ?? WeatherDefOf.Clear,
+                _ => DefDatabase<WeatherDef>.GetNamedSilentFail(weatherType) ?? WeatherDefOf.Clear
+            };
+        }
+        
+        private static void GiveInspiration(Dictionary<string, object> parameters, Map map)
+        {
+            string inspirationType = GetParam<string>(parameters, "type", "random");
+            string targetName = GetParam<string>(parameters, "colonist", "");
+            
+            // Find target colonist
+            Pawn targetPawn = null;
+            if (!string.IsNullOrEmpty(targetName))
+            {
+                targetPawn = map.mapPawns.FreeColonists
+                    .FirstOrDefault(p => p.Name.ToStringShort.ToLower() == targetName.ToLower());
+            }
+            
+            // Fallback to random colonist capable of inspiration
+            if (targetPawn == null)
+            {
+                targetPawn = map.mapPawns.FreeColonists
+                    .Where(p => p.mindState?.inspirationHandler != null && 
+                               !p.mindState.inspirationHandler.Inspired)
+                    .RandomElementWithFallback();
+            }
+            
+            if (targetPawn == null)
+            {
+                Log.Warning("[AI Narrator] No suitable colonist found for inspiration");
+                return;
+            }
+            
+            // Get inspiration def
+            InspirationDef inspirationDef = GetInspirationDef(inspirationType);
+            if (inspirationDef == null)
+            {
+                // Try random valid inspiration
+                inspirationDef = DefDatabase<InspirationDef>.AllDefs
+                    .Where(i => i.Worker.InspirationCanOccur(targetPawn))
+                    .RandomElementWithFallback();
+            }
+            
+            if (inspirationDef == null)
+            {
+                Log.Warning("[AI Narrator] No valid inspiration found for pawn");
+                return;
+            }
+            
+            if (targetPawn.mindState.inspirationHandler.TryStartInspiration(inspirationDef))
+            {
+                Log.Message($"[AI Narrator] Gave {targetPawn.Name} inspiration: {inspirationDef.defName}");
+            }
+            else
+            {
+                Log.Warning($"[AI Narrator] Failed to give inspiration to {targetPawn.Name}");
+            }
+        }
+        
+        private static InspirationDef GetInspirationDef(string type)
+        {
+            return type?.ToLower() switch
+            {
+                "shooting" or "shoot" => DefDatabase<InspirationDef>.GetNamedSilentFail("Shoot_Frenzy"),
+                "melee" or "fight" => DefDatabase<InspirationDef>.GetNamedSilentFail("Frenzy_Melee"),
+                "work" or "working" => DefDatabase<InspirationDef>.GetNamedSilentFail("Inspired_Creativity"),
+                "craft" or "crafting" => DefDatabase<InspirationDef>.GetNamedSilentFail("Inspired_Creativity"),
+                "social" or "recruitment" => DefDatabase<InspirationDef>.GetNamedSilentFail("Inspired_Recruitment"),
+                "surgery" or "medical" => DefDatabase<InspirationDef>.GetNamedSilentFail("Inspired_Surgery"),
+                "trade" or "trading" => DefDatabase<InspirationDef>.GetNamedSilentFail("Inspired_Trade"),
+                _ => null  // Will pick random
+            };
+        }
+        
+        private static void SpawnTrader(Dictionary<string, object> parameters, Map map)
+        {
+            string traderType = GetParam<string>(parameters, "type", "caravan");
+            
+            if (traderType.ToLower() == "orbital" || traderType.ToLower() == "ship")
+            {
+                // Spawn orbital trader
+                TraderKindDef traderKind = DefDatabase<TraderKindDef>.AllDefs
+                    .Where(t => t.orbital)
+                    .RandomElementWithFallback();
+                
+                if (traderKind != null)
+                {
+                    TradeShip tradeShip = new TradeShip(traderKind);
+                    map.passingShipManager.AddShip(tradeShip);
+                    tradeShip.GenerateThings();
+                    
+                    Find.LetterStack.ReceiveLetter(
+                        "Trader in Orbit",
+                        $"A {traderKind.label} has entered orbit, drawn by tales of your colony.",
+                        LetterDefOf.PositiveEvent
+                    );
+                    
+                    Log.Message($"[AI Narrator] Spawned orbital trader: {traderKind.label}");
+                }
+            }
+            else
+            {
+                // Spawn caravan trader
+                Faction faction = Find.FactionManager.AllFactionsVisible
+                    .Where(f => !f.IsPlayer && !f.HostileTo(Faction.OfPlayer) && f.def.humanlikeFaction)
+                    .RandomElementWithFallback();
+                
+                if (faction == null)
+                {
+                    Log.Warning("[AI Narrator] No friendly faction found for trader caravan");
+                    return;
+                }
+                
+                IncidentParms parms = new IncidentParms
+                {
+                    target = map,
+                    faction = faction
+                };
+                
+                IncidentDef traderIncident = IncidentDefOf.TraderCaravanArrival;
+                if (traderIncident.Worker.TryExecute(parms))
+                {
+                    Log.Message($"[AI Narrator] Spawned trader caravan from {faction.Name}");
+                }
+            }
+        }
+        
+        private static void SpawnAnimal(Dictionary<string, object> parameters, Map map)
+        {
+            string animalType = GetParam<string>(parameters, "animal", "random");
+            string behavior = GetParam<string>(parameters, "behavior", "tame");
+            int count = GetParam<int>(parameters, "count", 1);
+            
+            // Get animal kind
+            PawnKindDef animalKind = GetAnimalKind(animalType, map);
+            if (animalKind == null)
+            {
+                Log.Warning($"[AI Narrator] Could not find animal: {animalType}");
+                return;
+            }
+            
+            count = Math.Max(1, Math.Min(count, 5));  // Clamp to 1-5
+            
+            // Find spawn location
+            IntVec3 spawnLoc;
+            if (!CellFinder.TryFindRandomEdgeCellWith(
+                c => c.Walkable(map) && !c.Fogged(map),
+                map,
+                CellFinder.EdgeRoadChance_Neutral,
+                out spawnLoc))
+            {
+                spawnLoc = CellFinder.RandomEdgeCell(map);
+            }
+            
+            bool isManhunter = behavior.ToLower() == "manhunter" || behavior.ToLower() == "hostile";
+            
+            for (int i = 0; i < count; i++)
+            {
+                Pawn animal = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
+                    animalKind,
+                    isManhunter ? null : Faction.OfPlayer,
+                    PawnGenerationContext.NonPlayer,
+                    map.Tile
+                ));
+                
+                IntVec3 loc = CellFinder.RandomClosewalkCellNear(spawnLoc, map, 5);
+                GenSpawn.Spawn(animal, loc, map);
+                
+                if (isManhunter)
+                {
+                    animal.mindState.mentalStateHandler.TryStartMentalState(MentalStateDefOf.Manhunter);
+                }
+            }
+            
+            string message = isManhunter
+                ? $"A {(count > 1 ? "pack of " : "")}{animalKind.label}{(count > 1 ? "s have" : " has")} gone manhunter nearby!"
+                : $"A {(count > 1 ? "group of " : "")}{animalKind.label}{(count > 1 ? "s wander" : " wanders")} into the colony, seeking refuge.";
+            
+            Find.LetterStack.ReceiveLetter(
+                isManhunter ? "Manhunter!" : "Animals Arrive",
+                message,
+                isManhunter ? LetterDefOf.ThreatBig : LetterDefOf.PositiveEvent,
+                new TargetInfo(spawnLoc, map)
+            );
+            
+            Log.Message($"[AI Narrator] Spawned {count}x {animalKind.label} ({behavior})");
+        }
+        
+        private static PawnKindDef GetAnimalKind(string animalType, Map map)
+        {
+            // Try specific animal first
+            PawnKindDef specific = animalType?.ToLower() switch
+            {
+                "dog" or "husky" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Husky"),
+                "cat" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Cat"),
+                "wolf" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Wolf_Timber"),
+                "bear" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Bear_Grizzly"),
+                "boar" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Boar"),
+                "deer" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Deer"),
+                "chicken" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Chicken"),
+                "cow" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Cow"),
+                "horse" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Horse"),
+                "elephant" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Elephant"),
+                "thrumbo" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Thrumbo"),
+                "muffalo" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Muffalo"),
+                "alpaca" => DefDatabase<PawnKindDef>.GetNamedSilentFail("Alpaca"),
+                _ => DefDatabase<PawnKindDef>.GetNamedSilentFail(animalType)
+            };
+            
+            if (specific != null) return specific;
+            
+            // Random biome-appropriate animal
+            return DefDatabase<PawnKindDef>.AllDefs
+                .Where(k => k.RaceProps?.Animal == true && 
+                           map.Biome.CommonalityOfAnimal(k) > 0)
+                .RandomElementWithFallback() ?? DefDatabase<PawnKindDef>.GetNamedSilentFail("Rat");
+        }
+        
+        private static void HealColonist(Dictionary<string, object> parameters, Map map)
+        {
+            string targetName = GetParam<string>(parameters, "colonist", "");
+            string healType = GetParam<string>(parameters, "type", "injuries");
+            
+            // Find target colonist
+            Pawn targetPawn = null;
+            if (!string.IsNullOrEmpty(targetName))
+            {
+                targetPawn = map.mapPawns.FreeColonists
+                    .FirstOrDefault(p => p.Name.ToStringShort.ToLower() == targetName.ToLower());
+            }
+            
+            // Fallback to most injured colonist
+            if (targetPawn == null)
+            {
+                targetPawn = map.mapPawns.FreeColonists
+                    .Where(p => p.health?.hediffSet?.hediffs?.Any(h => h.def.isBad) == true)
+                    .OrderByDescending(p => p.health.hediffSet.hediffs.Count(h => h.def.isBad))
+                    .FirstOrDefault();
+            }
+            
+            if (targetPawn == null)
+            {
+                Log.Message("[AI Narrator] No injured colonist found to heal");
+                return;
+            }
+            
+            int healed = 0;
+            
+            if (healType.ToLower() == "all" || healType.ToLower() == "full")
+            {
+                // Heal everything
+                var hediffsToHeal = targetPawn.health.hediffSet.hediffs
+                    .Where(h => h.def.isBad && h.def.tendable)
+                    .ToList();
+                
+                foreach (var hediff in hediffsToHeal)
+                {
+                    targetPawn.health.RemoveHediff(hediff);
+                    healed++;
+                }
+            }
+            else
+            {
+                // Heal just injuries (not diseases)
+                var injuries = targetPawn.health.hediffSet.hediffs
+                    .Where(h => h is Hediff_Injury)
+                    .ToList();
+                
+                foreach (var injury in injuries)
+                {
+                    targetPawn.health.RemoveHediff(injury);
+                    healed++;
+                }
+            }
+            
+            if (healed > 0)
+            {
+                Messages.Message(
+                    $"{targetPawn.Name.ToStringShort}'s wounds mend miraculously.",
+                    targetPawn,
+                    MessageTypeDefOf.PositiveEvent
+                );
+                
+                Log.Message($"[AI Narrator] Healed {healed} conditions on {targetPawn.Name}");
+            }
+        }
+        
+        private static void GrantSkillXP(Dictionary<string, object> parameters, Map map)
+        {
+            string skillName = GetParam<string>(parameters, "skill", "random");
+            int xpAmount = GetParam<int>(parameters, "amount", 5000);
+            string targetName = GetParam<string>(parameters, "colonist", "");
+            
+            xpAmount = Math.Max(1000, Math.Min(xpAmount, 20000));  // Clamp 1k-20k
+            
+            // Find target colonist
+            Pawn targetPawn = null;
+            if (!string.IsNullOrEmpty(targetName))
+            {
+                targetPawn = map.mapPawns.FreeColonists
+                    .FirstOrDefault(p => p.Name.ToStringShort.ToLower() == targetName.ToLower());
+            }
+            
+            // Fallback to random colonist
+            if (targetPawn == null)
+            {
+                targetPawn = map.mapPawns.FreeColonists.RandomElementWithFallback();
+            }
+            
+            if (targetPawn == null)
+            {
+                Log.Warning("[AI Narrator] No colonist found for skill XP");
+                return;
+            }
+            
+            // Get skill
+            SkillDef skillDef = GetSkillDef(skillName);
+            if (skillDef == null)
+            {
+                // Random skill the pawn isn't incapable of
+                skillDef = DefDatabase<SkillDef>.AllDefs
+                    .Where(s => !targetPawn.skills.GetSkill(s).TotallyDisabled)
+                    .RandomElementWithFallback();
+            }
+            
+            if (skillDef == null)
+            {
+                Log.Warning("[AI Narrator] No valid skill found");
+                return;
+            }
+            
+            SkillRecord skill = targetPawn.skills.GetSkill(skillDef);
+            if (skill != null && !skill.TotallyDisabled)
+            {
+                skill.Learn(xpAmount, direct: true);
+                
+                Messages.Message(
+                    $"{targetPawn.Name.ToStringShort} gains insight in {skillDef.label}.",
+                    targetPawn,
+                    MessageTypeDefOf.PositiveEvent
+                );
+                
+                Log.Message($"[AI Narrator] Granted {xpAmount} XP in {skillDef.defName} to {targetPawn.Name}");
+            }
+        }
+        
+        private static SkillDef GetSkillDef(string skillName)
+        {
+            return skillName?.ToLower() switch
+            {
+                "shooting" or "shoot" => SkillDefOf.Shooting,
+                "melee" => SkillDefOf.Melee,
+                "construction" or "building" => SkillDefOf.Construction,
+                "mining" => SkillDefOf.Mining,
+                "cooking" or "cook" => SkillDefOf.Cooking,
+                "plants" or "growing" or "farming" => SkillDefOf.Plants,
+                "animals" or "animal" or "taming" => SkillDefOf.Animals,
+                "crafting" or "craft" => SkillDefOf.Crafting,
+                "art" or "artistic" => SkillDefOf.Artistic,
+                "medicine" or "medical" or "doctor" => SkillDefOf.Medicine,
+                "social" or "talking" => SkillDefOf.Social,
+                "intellectual" or "research" => SkillDefOf.Intellectual,
+                _ => DefDatabase<SkillDef>.GetNamedSilentFail(skillName)
+            };
         }
         
         private static T GetParam<T>(Dictionary<string, object> parameters, string key, T defaultValue)
