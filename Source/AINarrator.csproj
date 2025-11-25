@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>AINarrator</AssemblyName>
+    <RootNamespace>AINarrator</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    
+    <!-- Output directly to Assemblies folder -->
+    <OutputPath>..\Assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    
+    <!-- Copy NuGet package DLLs (Harmony, Newtonsoft.Json) to output -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    
+    <!-- Suppress warnings about missing XML documentation -->
+    <NoWarn>CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <!-- 
+    RimWorld Assembly References
+  -->
+  <PropertyGroup>
+    <!-- Set to your RimWorld installation before building (override via /p:RimWorldPath=...). -->
+    <RimWorldPath Condition="'$(RimWorldPath)'==''">C:\Path\To\RimWorld</RimWorldPath>
+    <RimWorldManagedPath>$(RimWorldPath)\RimWorldWin64_Data\Managed</RimWorldManagedPath>
+  </PropertyGroup>
+
+  <!-- NuGet Packages -->
+  <ItemGroup>
+    <!-- Harmony for patching - must be bundled with mod -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.3">
+      <PrivateAssets>none</PrivateAssets>
+    </PackageReference>
+    
+    <!-- JSON parsing - must be bundled with mod -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3">
+      <PrivateAssets>none</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Core RimWorld assemblies -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RimWorldManagedPath)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    
+    <!-- Unity assemblies -->
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
+
