@@ -19,3 +19,6 @@ Source/obj/
 Thumbs.db
 
 .cursor/*/*-local.md
+
+# Local build configuration (use Directory.Build.props.template as reference)
+Source/Directory.Build.props

@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!-- 
+      Local RimWorld installation path
+      
+      Copy this file to "Directory.Build.props" (remove .template) and update the path below.
+      Directory.Build.props is gitignored and won't be tracked.
+    -->
+    <RimWorldPath>C:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldPath>
+  </PropertyGroup>
+</Project>
+

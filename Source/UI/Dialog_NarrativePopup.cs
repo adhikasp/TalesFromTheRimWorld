@@ -16,10 +16,14 @@ namespace AINarrator
         private string eventSummary;
         private Action onContinue;
         private bool loading;
+        private bool wasLoadingDialog; // Track if this started as a loading dialog
         
         // Animation
         private float openTime;
         private const float FADE_DURATION = 0.3f;
+        
+        // Scrolling
+        private Vector2 scrollPosition = Vector2.zero;
         
         // Styling
         private static readonly Color HeaderColor = new Color(0.9f, 0.85f, 0.7f);
@@ -27,7 +31,7 @@ namespace AINarrator
         private static readonly Color DividerColor = new Color(0.6f, 0.55f, 0.45f);
         private static readonly Color BackgroundColor = new Color(0.12f, 0.11f, 0.1f, 0.97f);
         
-        public override Vector2 InitialSize => new Vector2(520f, 380f);
+        public override Vector2 InitialSize => new Vector2(560f, 450f);
         
         public Dialog_NarrativePopup(string narrative, string eventInfo, Action onContinueCallback)
         {
@@ -53,6 +57,7 @@ namespace AINarrator
         {
             var dialog = new Dialog_NarrativePopup("...", eventInfo, null);
             dialog.loading = true;
+            dialog.wasLoadingDialog = true;
             dialog.narrativeText = "The Narrator ponders...";
             return dialog;
         }
@@ -65,6 +70,15 @@ namespace AINarrator
             narrativeText = narrative;
             onContinue = onContinueCallback;
             loading = false;
+            
+            // Clear the placeholder event summary if this was a loading dialog
+            if (wasLoadingDialog)
+            {
+                eventSummary = null;
+            }
+            
+            // Reset scroll position when new text arrives
+            scrollPosition = Vector2.zero;
         }
         
         public override void DoWindowContents(Rect inRect)
@@ -97,7 +111,8 @@ namespace AINarrator
             Text.Font = GameFont.Small;
             GUI.color = new Color(TextColor.r, TextColor.g, TextColor.b, alpha);
             
-            Rect narrativeRect = new Rect(20f, y, inRect.width - 40f, 140f);
+            float narrativeAreaHeight = 200f;
+            Rect narrativeOuterRect = new Rect(20f, y, inRect.width - 40f, narrativeAreaHeight);
             
             if (loading)
             {
@@ -107,16 +122,27 @@ namespace AINarrator
                 
                 Text.Anchor = TextAnchor.MiddleCenter;
                 GUI.color = new Color(0.7f, 0.7f, 0.7f, alpha);
-                Widgets.Label(narrativeRect, loadingText);
+                Widgets.Label(narrativeOuterRect, loadingText);
                 Text.Anchor = TextAnchor.UpperLeft;
             }
             else
             {
-                // Word-wrapped narrative text
-                Widgets.Label(narrativeRect, narrativeText);
+                // Calculate actual text height for scrolling
+                float textWidth = narrativeOuterRect.width - 16f; // Account for scrollbar
+                float textHeight = Text.CalcHeight(narrativeText, textWidth);
+                
+                // Create scrollable area if text is taller than visible area
+                Rect viewRect = new Rect(0f, 0f, textWidth, Mathf.Max(textHeight + 10f, narrativeAreaHeight));
+                
+                Widgets.BeginScrollView(narrativeOuterRect, ref scrollPosition, viewRect);
+                
+                Rect narrativeTextRect = new Rect(0f, 0f, textWidth, textHeight);
+                Widgets.Label(narrativeTextRect, narrativeText);
+                
+                Widgets.EndScrollView();
             }
             
-            y += 150f;
+            y += narrativeAreaHeight + 10f;
             
             // Divider
             GUI.color = new Color(DividerColor.r, DividerColor.g, DividerColor.b, alpha * 0.6f);
