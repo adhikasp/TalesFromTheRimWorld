@@ -421,12 +421,16 @@ namespace AINarrator.Test
                 Console.ResetColor();
                 Console.ForegroundColor = ConsoleColor.DarkGray;
                 Console.WriteLine($"      Hint: {option.HintText}");
-                if (option.Consequence != null)
+                if (option.Consequences != null && option.Consequences.Count > 0)
                 {
-                    string paramsStr = option.Consequence.Parameters != null && option.Consequence.Parameters.Count > 0
-                        ? JsonConvert.SerializeObject(option.Consequence.Parameters)
-                        : "{}";
-                    Console.WriteLine($"      Consequence: {option.Consequence.Type} {paramsStr}");
+                    int consequenceNum = 1;
+                    foreach (var consequence in option.Consequences)
+                    {
+                        string paramsStr = consequence.Parameters != null && consequence.Parameters.Count > 0
+                            ? JsonConvert.SerializeObject(consequence.Parameters)
+                            : "{}";
+                        Console.WriteLine($"      Consequence {consequenceNum++}: {consequence.Type} {paramsStr}");
+                    }
                 }
                 Console.ResetColor();
                 optionNum++;

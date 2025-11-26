@@ -146,7 +146,10 @@ namespace AINarrator
                 if (selectedIndex >= 0 && selectedIndex < choiceEvent.Options.Count)
                 {
                     var option = choiceEvent.Options[selectedIndex];
-                    EventMapper.ExecuteConsequence(option.Consequence, Find.CurrentMap);
+                    if (option?.Consequences != null && option.Consequences.Count > 0)
+                    {
+                        EventMapper.ExecuteConsequences(option.Consequences, Find.CurrentMap);
+                    }
                     
                     // Log to journal
                     string journalText = $"{choiceEvent.NarrativeText}\n→ Choice: {option.Label}";

@@ -50,10 +50,12 @@ Response format (JSON array):
                 {
                     ""Label"": ""Short action description"",
                     ""HintText"": ""Brief hint at consequences"",
-                    ""Consequence"": {
-                        ""Type"": ""consequence_type"",
-                        ""Parameters"": { }
-                    }
+                    ""Consequences"": [
+                        {
+                            ""Type"": ""consequence_type"",
+                            ""Parameters"": { }
+                        }
+                    ]
                 }
             ]
         }
@@ -79,6 +81,7 @@ Available consequence types:
 Guidelines:
 - Create morally interesting dilemmas relevant to colony survival
 - Balance risk and reward across options
+- A single option can have multiple Consequences that resolve in order
 - Reference specific colonist names, traits, and relationships
 - Tie choices to recent events, deaths, or social dynamics when possible
 - Use the colony's history (past battles, fallen colonists) for emotional weight
@@ -295,13 +298,16 @@ Guidelines:
                         {
                             Label = "Investigate the lead",
                             HintText = "Might find supplies, might be a trap",
-                            Consequence = new ChoiceConsequence
+                            Consequences = new List<ChoiceConsequence>
                             {
-                                Type = "spawn_items",
-                                Parameters = new Dictionary<string, object>
+                                new ChoiceConsequence
                                 {
-                                    { "item", "Silver" },
-                                    { "count", 150 }
+                                    Type = "spawn_items",
+                                    Parameters = new Dictionary<string, object>
+                                    {
+                                        { "item", "Silver" },
+                                        { "count", 150 }
+                                    }
                                 }
                             }
                         },
@@ -309,10 +315,13 @@ Guidelines:
                         {
                             Label = "Ignore it",
                             HintText = "Safe, but opportunity lost",
-                            Consequence = new ChoiceConsequence
+                            Consequences = new List<ChoiceConsequence>
                             {
-                                Type = "nothing",
-                                Parameters = new Dictionary<string, object>()
+                                new ChoiceConsequence
+                                {
+                                    Type = "nothing",
+                                    Parameters = new Dictionary<string, object>()
+                                }
                             }
                         }
                     }
@@ -328,13 +337,16 @@ Guidelines:
                     {
                         Label = "Trade fairly",
                         HintText = "Gain some supplies, maintain good relations",
-                        Consequence = new ChoiceConsequence
+                        Consequences = new List<ChoiceConsequence>
                         {
-                            Type = "spawn_items",
-                            Parameters = new Dictionary<string, object>
+                            new ChoiceConsequence
                             {
-                                { "item", "Silver" },
-                                { "count", 100 }
+                                Type = "spawn_items",
+                                Parameters = new Dictionary<string, object>
+                                {
+                                    { "item", "Silver" },
+                                    { "count", 100 }
+                                }
                             }
                         }
                     },
@@ -342,10 +354,13 @@ Guidelines:
                     {
                         Label = "Send them away",
                         HintText = "No risk, no reward",
-                        Consequence = new ChoiceConsequence
+                        Consequences = new List<ChoiceConsequence>
                         {
-                            Type = "nothing",
-                            Parameters = new Dictionary<string, object>()
+                            new ChoiceConsequence
+                            {
+                                Type = "nothing",
+                                Parameters = new Dictionary<string, object>()
+                            }
                         }
                     }
                 }

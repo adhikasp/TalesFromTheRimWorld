@@ -140,7 +140,28 @@ namespace AINarrator
     {
         public string Label { get; set; }
         public string HintText { get; set; }
-        public ChoiceConsequence Consequence { get; set; }
+        [JsonProperty("Consequences")]
+        public List<ChoiceConsequence> Consequences { get; set; }
+        
+        [JsonProperty("Consequence")]
+        private ChoiceConsequence LegacyConsequence
+        {
+            set
+            {
+                if (value == null)
+                {
+                    return;
+                }
+                
+                Consequences ??= new List<ChoiceConsequence>();
+                Consequences.Add(value);
+            }
+        }
+        
+        public ChoiceOption()
+        {
+            Consequences = new List<ChoiceConsequence>();
+        }
     }
     
     public class ChoiceConsequence

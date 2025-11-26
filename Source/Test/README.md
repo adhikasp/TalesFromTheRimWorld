@@ -142,15 +142,19 @@ if you release him unharmed.
 OPTIONS:
   [1] Trust the prisoner's word
       Hint: May find valuable supplies, but he could escape
-      Consequence: spawn_items {"item":"Silver","count":180}
+      Consequences:
+        - spawn_items {"item":"Silver","count":180}
+        - faction_relation {"change":5}
 
   [2] Force the information out of him
       Hint: Guaranteed info, but Chen's methods may disturb others
-      Consequence: mood_effect {"type":"negative","severity":2}
+      Consequences:
+        - mood_effect {"type":"negative","severity":2}
 
   [3] Ignore the offer
       Hint: Safe, but you'll never know what you missed
-      Consequence: nothing {}
+      Consequences:
+        - nothing {}
 ```
 
 ## Troubleshooting

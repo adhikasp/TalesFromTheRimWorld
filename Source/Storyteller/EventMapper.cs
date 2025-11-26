@@ -13,7 +13,20 @@ namespace AINarrator
     public static class EventMapper
     {
         /// <summary>
-        /// Execute a consequence from a choice option.
+        /// Execute a sequence of consequences from a choice option.
+        /// </summary>
+        public static void ExecuteConsequences(IEnumerable<ChoiceConsequence> consequences, Map map)
+        {
+            if (consequences == null || map == null) return;
+            
+            foreach (var consequence in consequences)
+            {
+                ExecuteConsequence(consequence, map);
+            }
+        }
+        
+        /// <summary>
+        /// Execute a single consequence from a choice option.
         /// </summary>
         public static void ExecuteConsequence(ChoiceConsequence consequence, Map map)
         {

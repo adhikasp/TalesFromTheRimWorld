@@ -113,7 +113,14 @@ namespace AINarrator
                 if (selectedIndex >= 0 && selectedIndex < choiceEvent.Options.Count)
                 {
                     var option = choiceEvent.Options[selectedIndex];
-                    EventMapper.ExecuteConsequence(option.Consequence, map);
+                    if (option?.Consequences != null && option.Consequences.Count > 0)
+                    {
+                        EventMapper.ExecuteConsequences(option.Consequences, map);
+                    }
+                    else
+                    {
+                        Log.Message("[AI Narrator] Choice option had no mechanical consequences");
+                    }
                 }
             });
             
