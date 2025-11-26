@@ -162,6 +162,13 @@ namespace AINarrator
                 itemDef = ThingDefOf.Silver;
             }
             
+            // Handle negative counts (removal) vs positive counts (spawning)
+            if (count < 0)
+            {
+                RemoveItems(itemDef, -count, map);
+                return;
+            }
+            
             // Find spawn location (center of colony)
             IntVec3 spawnLoc = map.Center;
             if (!spawnLoc.Walkable(map))
@@ -183,6 +190,97 @@ namespace AINarrator
             );
             
             Log.Message($"[AI Narrator] Spawned {items.stackCount}x {items.Label}");
+        }
+        
+        /// <summary>
+        /// Remove items from the colony (ground, storage, pawn inventories).
+        /// </summary>
+        private static void RemoveItems(ThingDef itemDef, int amountToRemove, Map map)
+        {
+            if (itemDef == null || amountToRemove <= 0 || map == null)
+                return;
+            
+            int remaining = amountToRemove;
+            var itemsToRemove = new List<Thing>();
+            
+            try
+            {
+                // Find all items of this type in the map (on ground and in storage)
+                var spawnedThings = map.listerThings.AllThings
+                    .Where(t => t.def == itemDef && t.Spawned)
+                    .OrderByDescending(t => t.stackCount)  // Remove from largest stacks first
+                    .ToList();
+                
+                // Find items in pawn inventories
+                var inventoryThings = new List<Thing>();
+                foreach (var pawn in map.mapPawns.FreeColonists)
+                {
+                    if (pawn.inventory?.innerContainer == null) continue;
+                    
+                    var pawnItems = pawn.inventory.innerContainer
+                        .Where(t => t.def == itemDef)
+                        .ToList();
+                    
+                    inventoryThings.AddRange(pawnItems);
+                }
+                
+                // Combine all items, prioritizing spawned items first
+                var allThings = spawnedThings.Concat(inventoryThings)
+                    .OrderByDescending(t => t.stackCount)
+                    .ToList();
+                
+                // Remove items until we've removed enough
+                foreach (var thing in allThings)
+                {
+                    if (remaining <= 0) break;
+                    
+                    int toRemoveFromStack = Math.Min(remaining, thing.stackCount);
+                    
+                    if (toRemoveFromStack >= thing.stackCount)
+                    {
+                        // Remove entire stack
+                        itemsToRemove.Add(thing);
+                        remaining -= thing.stackCount;
+                    }
+                    else
+                    {
+                        // Split stack and remove part
+                        Thing splitThing = thing.SplitOff(toRemoveFromStack);
+                        if (splitThing != null)
+                        {
+                            splitThing.Destroy();
+                            remaining -= toRemoveFromStack;
+                        }
+                    }
+                }
+                
+                // Destroy all items marked for removal
+                foreach (var thing in itemsToRemove)
+                {
+                    thing.Destroy();
+                }
+                
+                int actuallyRemoved = amountToRemove - remaining;
+                
+                if (actuallyRemoved > 0)
+                {
+                    Find.LetterStack.ReceiveLetter(
+                        "Resources Lost",
+                        $"The narrator's tale has cost the colony {actuallyRemoved} {itemDef.label}.",
+                        LetterDefOf.NegativeEvent
+                    );
+                    
+                    Log.Message($"[AI Narrator] Removed {actuallyRemoved}x {itemDef.label}");
+                }
+                else
+                {
+                    Log.Warning($"[AI Narrator] Could not remove {amountToRemove}x {itemDef.label} - not enough items in colony");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[AI Narrator] Error removing items: {ex.Message}");
+            }
         }
         
         private static void ApplyMoodEffect(Dictionary<string, object> parameters, Map map)
