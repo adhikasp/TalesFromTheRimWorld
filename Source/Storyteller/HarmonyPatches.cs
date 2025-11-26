@@ -267,9 +267,17 @@ namespace AINarrator
         {
             try
             {
-                if (__instance?.Map == null) return;
+                // Early safety checks - ensure pawn and map are valid
+                if (__instance == null) return;
                 
-                int mapId = __instance.Map.uniqueID;
+                // Map can become null during death processing
+                Map map = __instance.Map;
+                if (map == null) return;
+                
+                // Ensure map is fully initialized
+                if (map.mapPawns == null) return;
+                
+                int mapId = map.uniqueID;
                 if (!activeBattles.TryGetValue(mapId, out var tracker)) return;
                 
                 // Track enemy kills
@@ -278,7 +286,7 @@ namespace AINarrator
                     tracker.EnemiesKilled++;
                     
                     // Track who killed them (hero tracking)
-                    if (dinfo.HasValue && dinfo.Value.Instigator is Pawn killer)
+                    if (dinfo.HasValue && dinfo.Value.Instigator is Pawn killer && killer != null)
                     {
                         if (killer.Faction == Faction.OfPlayer)
                         {
@@ -287,14 +295,19 @@ namespace AINarrator
                     }
                 }
                 // Track colonist casualties
-                else if (__instance.Faction == Faction.OfPlayer && __instance.RaceProps.Humanlike)
+                else if (__instance.Faction == Faction.OfPlayer && __instance.RaceProps?.Humanlike == true)
                 {
                     tracker.ColonistCasualties++;
                 }
                 
                 // Check if battle is over (no more hostile pawns)
-                var remainingHostiles = __instance.Map.mapPawns.AllPawnsSpawned
-                    .Count(p => p.HostileTo(Faction.OfPlayer) && !p.Dead && !p.Downed);
+                // Use ToList() to create a snapshot and avoid collection modification issues
+                var allPawns = map.mapPawns.AllPawnsSpawned;
+                if (allPawns == null) return;
+                
+                var remainingHostiles = allPawns
+                    .Where(p => p != null && !p.Destroyed && !p.Dead && !p.Downed)
+                    .Count(p => p.HostileTo(Faction.OfPlayer));
                 
                 if (remainingHostiles == 0 && tracker.EnemiesKilled > 0)
                 {
@@ -315,16 +328,28 @@ namespace AINarrator
         {
             try
             {
+                // Safety check - ensure game state is valid
+                if (Find.Maps == null || Find.TickManager == null) return;
+                
                 var toRemove = new List<int>();
                 
-                foreach (var kvp in activeBattles)
+                // Create snapshot of battle trackers to avoid modification during iteration
+                var battleSnapshot = activeBattles.ToList();
+                
+                foreach (var kvp in battleSnapshot)
                 {
                     var mapId = kvp.Key;
                     var tracker = kvp.Value;
                     
+                    if (tracker == null)
+                    {
+                        toRemove.Add(mapId);
+                        continue;
+                    }
+                    
                     // Find the map
-                    var map = Find.Maps.FirstOrDefault(m => m.uniqueID == mapId);
-                    if (map == null)
+                    var map = Find.Maps.FirstOrDefault(m => m != null && m.uniqueID == mapId);
+                    if (map == null || map.mapPawns == null)
                     {
                         toRemove.Add(mapId);
                         continue;
@@ -343,8 +368,16 @@ namespace AINarrator
                     }
                     
                     // Check if battle ended (no hostiles left)
-                    var remainingHostiles = map.mapPawns.AllPawnsSpawned
-                        .Count(p => p.HostileTo(Faction.OfPlayer) && !p.Dead && !p.Downed);
+                    var allPawns = map.mapPawns.AllPawnsSpawned;
+                    if (allPawns == null)
+                    {
+                        toRemove.Add(mapId);
+                        continue;
+                    }
+                    
+                    var remainingHostiles = allPawns
+                        .Where(p => p != null && !p.Destroyed && !p.Dead && !p.Downed)
+                        .Count(p => p.HostileTo(Faction.OfPlayer));
                     
                     if (remainingHostiles == 0 && tracker.EnemyPawns.Count > 0)
                     {
@@ -381,12 +414,23 @@ namespace AINarrator
                 );
                 
                 // Record heroic actions for top performers
-                foreach (var hero in tracker.Heroes.Take(3))
+                // Use a snapshot of colonists to avoid collection issues
+                var freeColonists = Find.CurrentMap?.mapPawns?.FreeColonists?.ToList();
+                if (freeColonists != null)
                 {
-                    StoryContext.Instance?.RecordHeroicAction(
-                        Find.CurrentMap?.mapPawns?.FreeColonists?.FirstOrDefault(p => p.Name?.ToStringShort == hero),
-                        $"fought valiantly against {tracker.EnemyFaction}"
-                    );
+                    foreach (var hero in tracker.Heroes.Take(3))
+                    {
+                        var heroPawn = freeColonists.FirstOrDefault(p => 
+                            p != null && !p.Dead && !p.Destroyed && p.Name?.ToStringShort == hero);
+                        
+                        if (heroPawn != null)
+                        {
+                            StoryContext.Instance?.RecordHeroicAction(
+                                heroPawn,
+                                $"fought valiantly against {tracker.EnemyFaction}"
+                            );
+                        }
+                    }
                 }
                 
                 Log.Message($"[AI Narrator] Battle recorded: {tracker.BattleType} vs {tracker.EnemyFaction}, {tracker.EnemiesKilled} enemies killed, {tracker.ColonistCasualties} casualties");

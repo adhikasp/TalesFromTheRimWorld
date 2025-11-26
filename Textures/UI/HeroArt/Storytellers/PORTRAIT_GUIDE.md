@@ -59,3 +59,4 @@ Look at existing RimWorld storyteller portraits for style reference:
 
 The Narrator should feel **wise and omniscient** - like someone who has read every story ever written.
 
+
