@@ -11,6 +11,35 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
+  <!-- RimWorld assembly references -->
+  <PropertyGroup>
+    <RimWorldPath Condition="'$(RimWorldPath)'==''">C:\Path\To\RimWorld</RimWorldPath>
+    <RimWorldManagedPath>$(RimWorldPath)\RimWorldWin64_Data\Managed</RimWorldManagedPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RimWorldManagedPath)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(RimWorldManagedPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
   <!-- Reference the main AINarrator project to use actual DTOs and prompts -->
   <ItemGroup>
     <ProjectReference Include="..\AINarrator.csproj" />
@@ -20,6 +49,11 @@
   <Target Name="CopyAINarratorDll" AfterTargets="Build">
     <Copy SourceFiles="..\..\Assemblies\AINarrator.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
+
+  <!-- Exclude unit test files that rely on xUnit -->
+  <ItemGroup>
+    <Compile Remove="PromptBuilderTests.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Update="appsettings.json">

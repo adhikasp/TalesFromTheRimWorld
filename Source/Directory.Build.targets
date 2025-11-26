@@ -1,0 +1,13 @@
+<Project>
+  <Target Name="BuildInteractiveTestConsole"
+          AfterTargets="Build"
+          Condition="'$(MSBuildProjectName)'=='AINarrator' and '$(BuildingInteractiveTest)'!='true'">
+    <Message Importance="High"
+             Text="Building NarratorTest interactive console ($(Configuration))..." />
+    <MSBuild Projects="$(InteractiveTestProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);BuildingInteractiveTest=true;InteractiveTestProject=$(InteractiveTestProject)" />
+  </Target>
+</Project>
+
+

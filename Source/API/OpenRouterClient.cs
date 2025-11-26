@@ -81,6 +81,8 @@ namespace AINarrator
                 userPrompt,
                 maxTokens
             );
+
+            Log.Message($"[AI Narrator] Narration user prompt:\n{userPrompt}");
             
             core.RequestNarration(request, onSuccess, onError);
         }
@@ -105,6 +107,8 @@ namespace AINarrator
                 userPrompt,
                 2000  // Multiple choice events need more tokens
             );
+
+            Log.Message($"[AI Narrator] Choice user prompt:\n{userPrompt}");
             
             core.RequestChoiceEvent(request, 
                 result =>
