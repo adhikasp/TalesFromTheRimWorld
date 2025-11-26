@@ -150,10 +150,6 @@ namespace AINarrator
                     {
                         EventMapper.ExecuteConsequences(option.Consequences, Find.CurrentMap);
                     }
-                    
-                    // Log to journal
-                    string journalText = $"{choiceEvent.NarrativeText}\n→ Choice: {option.Label}";
-                    StoryContext.Instance?.AddJournalEntry(journalText, JournalEntryType.Choice, option.Label);
                 }
             });
             

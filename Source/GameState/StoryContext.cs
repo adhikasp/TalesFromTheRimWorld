@@ -114,6 +114,27 @@ namespace AINarrator
         /// </summary>
         public void AddJournalEntry(string text, JournalEntryType type, string choiceMade = null)
         {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+            
+            int currentTick = Find.TickManager?.TicksGame ?? 0;
+            
+            // Prevent accidental duplicates (e.g., double callbacks in the same tick)
+            if (JournalEntries.Count > 0)
+            {
+                var lastEntry = JournalEntries[JournalEntries.Count - 1];
+                if (lastEntry != null &&
+                    lastEntry.EntryType == type &&
+                    lastEntry.GameTick == currentTick &&
+                    string.Equals(lastEntry.Text, text, StringComparison.Ordinal) &&
+                    string.Equals(lastEntry.ChoiceMade ?? string.Empty, choiceMade ?? string.Empty, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+            
             var entry = new JournalEntry
             {
                 GameTick = Find.TickManager.TicksGame,
