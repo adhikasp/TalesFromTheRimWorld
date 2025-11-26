@@ -79,7 +79,11 @@ namespace AINarrator
                     case "skill_xp":
                         GrantSkillXP(consequence.Parameters, map);
                         break;
-                        
+                    
+                    case "trigger_incident":
+                        TriggerIncident(consequence.Parameters, map);
+                        break;
+                    
                     case "nothing":
                     default:
                         // No effect
@@ -726,6 +730,133 @@ namespace AINarrator
             };
         }
         
+        /// <summary>
+        /// Trigger any RimWorld incident by its defName.
+        /// Allows triggering prebaked events like ship chunks, meteorites, quests, etc.
+        /// </summary>
+        private static void TriggerIncident(Dictionary<string, object> parameters, Map map)
+        {
+            string incidentName = GetParam<string>(parameters, "incident", "");
+            
+            if (string.IsNullOrEmpty(incidentName))
+            {
+                Log.Warning("[AI Narrator] trigger_incident requires 'incident' parameter");
+                return;
+            }
+            
+            // Look up incident by defName
+            IncidentDef incidentDef = DefDatabase<IncidentDef>.GetNamedSilentFail(incidentName);
+            if (incidentDef == null)
+            {
+                // Try common aliases for easier LLM usage
+                incidentDef = GetIncidentByAlias(incidentName);
+            }
+            
+            if (incidentDef == null)
+            {
+                Log.Warning($"[AI Narrator] Unknown incident: {incidentName}");
+                return;
+            }
+            
+            // Create incident parameters
+            IncidentParms parms = new IncidentParms
+            {
+                target = map,
+                forced = true  // Force execution even if conditions aren't perfect
+            };
+            
+            // Set faction if specified
+            string factionName = GetParam<string>(parameters, "faction", "");
+            if (!string.IsNullOrEmpty(factionName))
+            {
+                parms.faction = Find.FactionManager.AllFactionsVisible
+                    .FirstOrDefault(f => f.def.defName == factionName || f.Name.ToString() == factionName);
+            }
+            
+            // Set threat points if specified (for raid-like incidents)
+            if (parameters.ContainsKey("points"))
+            {
+                parms.points = GetParam<float>(parameters, "points", StorytellerUtility.DefaultThreatPointsNow(map));
+            }
+            
+            // Set other common parameters
+            if (parameters.ContainsKey("spawnCenter"))
+            {
+                // Can specify spawn location if needed by incident type
+                // Most incidents handle this automatically
+            }
+            
+            // Execute the incident
+            if (incidentDef.Worker.CanFireNow(parms))
+            {
+                if (incidentDef.Worker.TryExecute(parms))
+                {
+                    Log.Message($"[AI Narrator] Successfully triggered incident: {incidentDef.defName}");
+                }
+                else
+                {
+                    Log.Warning($"[AI Narrator] Failed to execute incident: {incidentDef.defName}");
+                }
+            }
+            else
+            {
+                // Try anyway with forced=true
+                if (incidentDef.Worker.TryExecute(parms))
+                {
+                    Log.Message($"[AI Narrator] Forced incident execution: {incidentDef.defName}");
+                }
+                else
+                {
+                    Log.Warning($"[AI Narrator] Incident cannot fire: {incidentDef.defName}");
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Maps common incident names/aliases to IncidentDefs for easier LLM usage.
+        /// </summary>
+        private static IncidentDef GetIncidentByAlias(string alias)
+        {
+            return alias?.ToLower() switch
+            {
+                // Threats
+                "raid" or "enemy_raid" => IncidentDefOf.RaidEnemy,
+                "manhunter_pack" or "manhunter" => DefDatabase<IncidentDef>.GetNamedSilentFail("AnimalInsanityMass") ?? IncidentDefOf.RaidEnemy,
+                "infestation" => IncidentDefOf.Infestation,
+                
+                // Weather
+                "meteorite" or "meteor" => DefDatabase<IncidentDef>.GetNamedSilentFail("MeteoriteImpact"),
+                "tornado" => DefDatabase<IncidentDef>.GetNamedSilentFail("Tornado"),
+                "flashstorm" => DefDatabase<IncidentDef>.GetNamedSilentFail("Flashstorm"),
+                "volcanic_winter" => DefDatabase<IncidentDef>.GetNamedSilentFail("VolcanicWinter"),
+                
+                // Resources
+                "ship_chunk" or "shipchunk" => IncidentDefOf.ShipChunkDrop,
+                "resource_pod" or "crashedpod" => DefDatabase<IncidentDef>.GetNamedSilentFail("ResourcePodCrash"),
+                
+                // Visitors
+                "visitor_group" or "visitors" => IncidentDefOf.VisitorGroup,
+                "trader_caravan" or "trader" => IncidentDefOf.TraderCaravanArrival,
+                
+                // Opportunities
+                "wanderer_joins" or "wanderer" => IncidentDefOf.WandererJoin,
+                "refugee_chased" or "refugee" => DefDatabase<IncidentDef>.GetNamedSilentFail("RefugeeChased"),
+                "traveler_wounded" => DefDatabase<IncidentDef>.GetNamedSilentFail("TravelerWounded"),
+                
+                // Quests
+                "quest" or "random_quest" => DefDatabase<IncidentDef>.AllDefs
+                    .Where(d => d.category?.defName == "Quest" || d.tags?.Contains("Quest") == true)
+                    .RandomElementWithFallback(),
+                
+                // Diseases
+                "disease" or "random_disease" => DefDatabase<IncidentDef>.AllDefs
+                    .Where(d => d.category?.defName == "DiseaseHuman" || d.category?.defName == "DiseaseAnimal")
+                    .RandomElementWithFallback(),
+                
+                _ => null
+            };
+        }
+        
         private static T GetParam<T>(Dictionary<string, object> parameters, string key, T defaultValue)
         {
             if (parameters == null || !parameters.ContainsKey(key))
@@ -738,11 +869,26 @@ namespace AINarrator
                 if (value is T typed)
                     return typed;
                 
-                if (typeof(T) == typeof(int) && value is long longVal)
-                    return (T)(object)(int)longVal;
-                    
-                if (typeof(T) == typeof(int) && value is double doubleVal)
-                    return (T)(object)(int)doubleVal;
+                // Handle numeric type conversions common in JSON
+                if (typeof(T) == typeof(int))
+                {
+                    if (value is long longVal)
+                        return (T)(object)(int)longVal;
+                    if (value is double doubleVal)
+                        return (T)(object)(int)doubleVal;
+                    if (value is float floatVal)
+                        return (T)(object)(int)floatVal;
+                }
+                
+                if (typeof(T) == typeof(float))
+                {
+                    if (value is double doubleVal)
+                        return (T)(object)(float)doubleVal;
+                    if (value is int intVal)
+                        return (T)(object)(float)intVal;
+                    if (value is long longVal)
+                        return (T)(object)(float)longVal;
+                }
                 
                 return (T)Convert.ChangeType(value, typeof(T));
             }

@@ -76,6 +76,25 @@ Available consequence types:
 - ""spawn_animal"": Spawn animals (Parameters: {""animal"": ""dog/cat/wolf/bear/muffalo/thrumbo/random"", ""behavior"": ""tame/manhunter"", ""count"": 1-5})
 - ""heal_colonist"": Heal a colonist (Parameters: {""colonist"": ""optional name"", ""type"": ""injuries/all""})
 - ""skill_xp"": Grant skill experience (Parameters: {""skill"": ""shooting/melee/construction/medicine/cooking/crafting/social/research/random"", ""amount"": 3000-10000, ""colonist"": ""optional name""})
+- ""trigger_incident"": Trigger any RimWorld incident (Parameters: {""incident"": ""see list below"", ""faction"": ""optional faction name"", ""points"": ""optional threat points for raids""})
+  Available incidents:
+  - raid / enemy_raid - Enemy faction attack
+  - manhunter_pack / manhunter - Animals go manhunter
+  - infestation - Insect infestation
+  - meteorite / meteor - Meteorite impact with resources
+  - ship_chunk / shipchunk - Ship chunk falls from sky
+  - resource_pod / crashedpod - Resource pod crash
+  - tornado - Tornado event
+  - flashstorm - Lightning storm
+  - volcanic_winter - Volcanic winter begins
+  - visitor_group / visitors - Friendly visitors arrive
+  - trader_caravan / trader - Trade caravan arrives
+  - wanderer_joins / wanderer - Wanderer joins colony
+  - refugee_chased / refugee - Refugee being chased
+  - traveler_wounded - Wounded traveler appears
+  - quest / random_quest - Random quest event
+  - disease / random_disease - Disease outbreak
+  (Or use any RimWorld IncidentDef defName directly)
 - ""nothing"": No mechanical effect
 
 Guidelines:
