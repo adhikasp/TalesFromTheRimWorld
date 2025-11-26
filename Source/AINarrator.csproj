@@ -19,6 +19,12 @@
     <NoWarn>CS1591</NoWarn>
   </PropertyGroup>
 
+  <!-- Exclude Test project files from this build -->
+  <ItemGroup>
+    <Compile Remove="Test\**" />
+    <None Remove="Test\**" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>

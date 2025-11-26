@@ -22,3 +22,4 @@ Thumbs.db
 
 # Local build configuration (use Directory.Build.props.template as reference)
 Source/Directory.Build.props
+Source/Test/appsettings.json

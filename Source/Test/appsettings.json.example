@@ -1,0 +1,8 @@
+{
+  "ApiKey": "CHANGEME",
+  "Model": "google/gemini-3-pro-preview",
+  "Temperature": 0.8,
+  "MaxNarrationTokens": 200,
+  "MaxChoiceTokens": 2000
+}
+

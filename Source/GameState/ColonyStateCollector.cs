@@ -88,288 +88,23 @@ namespace AINarrator
         
         /// <summary>
         /// Get detailed context for event narration.
+        /// Uses shared ContextFormatter for consistent output.
         /// </summary>
         public static string GetNarrationContext(IncidentParms parms = null, IncidentDef incidentDef = null)
         {
             var snapshot = GetSnapshot();
-            var sb = new StringBuilder();
-            
-            // Colony header
-            sb.AppendLine($"=== COLONY: {snapshot.ColonyName} ===");
-            sb.AppendLine($"Day {snapshot.ColonyAgeDays} - {snapshot.Quadrum}, Year {snapshot.Year}");
-            sb.AppendLine($"Season: {snapshot.Season} | Biome: {snapshot.Biome}");
-            sb.AppendLine($"Population: {snapshot.ColonistCount} colonists, {snapshot.PrisonerCount} prisoners");
-            sb.AppendLine();
-            
-            // Environment
-            if (snapshot.Environment != null)
-            {
-                sb.AppendLine("=== ENVIRONMENT ===");
-                sb.AppendLine($"Time: {snapshot.Environment.TimeOfDay} | Weather: {snapshot.Environment.Weather}");
-                sb.AppendLine($"Temperature: {snapshot.Environment.Temperature}");
-                if (snapshot.Environment.ActiveConditions.Any())
-                {
-                    sb.AppendLine($"Conditions: {string.Join(", ", snapshot.Environment.ActiveConditions)}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Colonist details (top 6 for narration)
-            sb.AppendLine("=== COLONISTS ===");
-            foreach (var colonist in snapshot.ColonistDetails.Take(6))
-            {
-                sb.AppendLine(colonist.ToDetailedSummary());
-            }
-            if (snapshot.ColonistDetails.Count > 6)
-            {
-                sb.AppendLine($"...and {snapshot.ColonistDetails.Count - 6} more colonists");
-            }
-            sb.AppendLine();
-            
-            // Recent interactions (great for narrative flavor)
-            if (snapshot.RecentInteractions.Any())
-            {
-                sb.AppendLine("=== RECENT SOCIAL INTERACTIONS ===");
-                foreach (var interaction in snapshot.RecentInteractions.Take(5))
-                {
-                    sb.AppendLine($"- {interaction}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Recent activities
-            if (snapshot.RecentActivities.Any())
-            {
-                sb.AppendLine("=== RECENT NOTABLE ACTIVITIES ===");
-                foreach (var activity in snapshot.RecentActivities.Take(5))
-                {
-                    sb.AppendLine($"- {activity}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Active threats
-            if (snapshot.ActiveThreats.Any())
-            {
-                sb.AppendLine("=== ACTIVE THREATS ===");
-                foreach (var threat in snapshot.ActiveThreats)
-                {
-                    sb.AppendLine($"- {threat}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Faction relations (most relevant ones)
-            var relevantFactions = snapshot.FactionRelations
-                .Where(f => f.Goodwill != 0 || f.IsHostile)
-                .OrderByDescending(f => Math.Abs(f.Goodwill))
-                .Take(5)
-                .ToList();
-            if (relevantFactions.Any())
-            {
-                sb.AppendLine("=== FACTION RELATIONS ===");
-                foreach (var faction in relevantFactions)
-                {
-                    sb.AppendLine($"- {faction}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Death records for narrative callbacks
-            if (snapshot.DeathRecords.Any())
-            {
-                sb.AppendLine("=== FALLEN COLONISTS ===");
-                foreach (var death in TakeLast(snapshot.DeathRecords, 5))
-                {
-                    sb.AppendLine($"- {death}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Recent events for continuity
-            if (snapshot.RecentEvents.Any())
-            {
-                sb.AppendLine("=== RECENT EVENTS ===");
-                foreach (var evt in snapshot.RecentEvents.Take(5))
-                {
-                    sb.AppendLine($"- {evt}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Current event details if provided
-            if (incidentDef != null)
-            {
-                sb.AppendLine("=== CURRENT EVENT ===");
-                sb.AppendLine($"Event: {incidentDef.label}");
-                if (parms != null)
-                {
-                    if (parms.faction != null)
-                    {
-                        var factionInfo = snapshot.FactionRelations.FirstOrDefault(f => f.Name == parms.faction.Name);
-                        sb.AppendLine($"Faction: {parms.faction.Name}");
-                        if (factionInfo != null)
-                        {
-                            sb.AppendLine($"Relation: {factionInfo.RelationType} (Goodwill: {factionInfo.Goodwill})");
-                        }
-                    }
-                    if (parms.points > 0)
-                    {
-                        string severity = parms.points < 300 ? "minor" : 
-                                         parms.points < 800 ? "moderate" : "major";
-                        sb.AppendLine($"Threat Level: {severity}");
-                    }
-                }
-            }
-            
-            return sb.ToString();
+            var eventInfo = EventInfo.FromIncident(incidentDef, parms);
+            return ContextFormatter.FormatNarrationContext(snapshot, eventInfo);
         }
         
         /// <summary>
         /// Get context specifically for choice events.
+        /// Uses shared ContextFormatter for consistent output.
         /// </summary>
         public static string GetChoiceContext()
         {
             var snapshot = GetSnapshot();
-            var sb = new StringBuilder();
-            
-            // Colony header
-            sb.AppendLine($"=== COLONY: {snapshot.ColonyName} ===");
-            sb.AppendLine($"Day {snapshot.ColonyAgeDays}, {snapshot.Season}, {snapshot.Biome}");
-            sb.AppendLine($"Population: {snapshot.ColonistCount} colonists");
-            sb.AppendLine();
-            
-            // Environment for atmosphere
-            if (snapshot.Environment != null)
-            {
-                sb.AppendLine("=== ENVIRONMENT ===");
-                sb.AppendLine($"Time: {snapshot.Environment.TimeOfDay} | Weather: {snapshot.Environment.Weather}");
-                sb.AppendLine($"Temperature: {snapshot.Environment.Temperature}");
-                if (snapshot.Environment.ActiveConditions.Any())
-                {
-                    sb.AppendLine($"Active Conditions: {string.Join(", ", snapshot.Environment.ActiveConditions)}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Full colonist details for choices
-            sb.AppendLine("=== COLONISTS ===");
-            foreach (var colonist in snapshot.ColonistDetails)
-            {
-                sb.AppendLine(colonist.ToFullSummary());
-            }
-            sb.AppendLine();
-            
-            // Recent interactions
-            if (snapshot.RecentInteractions.Any())
-            {
-                sb.AppendLine("=== RECENT SOCIAL DYNAMICS ===");
-                foreach (var interaction in snapshot.RecentInteractions.Take(8))
-                {
-                    sb.AppendLine($"- {interaction}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Resources
-            sb.AppendLine("=== RESOURCES ===");
-            sb.AppendLine($"- Total Wealth: {snapshot.WealthTotal:N0} silver equivalent");
-            foreach (var resource in snapshot.Resources)
-            {
-                sb.AppendLine($"- {resource.Key}: {resource.Value}");
-            }
-            sb.AppendLine();
-            
-            // Faction relations
-            if (snapshot.FactionRelations.Any())
-            {
-                sb.AppendLine("=== FACTION RELATIONS ===");
-                foreach (var faction in snapshot.FactionRelations.OrderByDescending(f => Math.Abs(f.Goodwill)).Take(8))
-                {
-                    sb.AppendLine($"- {faction}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Prisoners for choices involving them
-            if (snapshot.Prisoners.Any())
-            {
-                sb.AppendLine("=== PRISONERS ===");
-                foreach (var prisoner in snapshot.Prisoners)
-                {
-                    sb.AppendLine($"- {prisoner}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Active threats
-            if (snapshot.ActiveThreats.Any())
-            {
-                sb.AppendLine("=== ACTIVE THREATS ===");
-                foreach (var threat in snapshot.ActiveThreats)
-                {
-                    sb.AppendLine($"- {threat}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Colony animals (bonded especially)
-            if (snapshot.Animals.Any())
-            {
-                sb.AppendLine("=== COLONY ANIMALS ===");
-                foreach (var animal in snapshot.Animals.Take(10))
-                {
-                    sb.AppendLine($"- {animal}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Notable items
-            if (snapshot.NotableItems.Any())
-            {
-                sb.AppendLine("=== NOTABLE ITEMS ===");
-                foreach (var item in snapshot.NotableItems.Take(10))
-                {
-                    sb.AppendLine($"- {item}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Infrastructure
-            if (snapshot.Infrastructure != null)
-            {
-                sb.AppendLine("=== INFRASTRUCTURE ===");
-                sb.AppendLine($"- Hospital Beds: {snapshot.Infrastructure.HospitalBeds}");
-                sb.AppendLine($"- Turrets: {snapshot.Infrastructure.Turrets}");
-                sb.AppendLine($"- Mortars: {snapshot.Infrastructure.Mortars}");
-                sb.AppendLine($"- Power Generation: {snapshot.Infrastructure.PowerGeneration} W");
-                sb.AppendLine($"- Research: {snapshot.Infrastructure.ResearchCompleted}");
-                sb.AppendLine();
-            }
-            
-            // Death records for narrative callbacks
-            if (snapshot.DeathRecords.Any())
-            {
-                sb.AppendLine("=== FALLEN COLONISTS ===");
-                foreach (var death in snapshot.DeathRecords)
-                {
-                    sb.AppendLine($"- {death}");
-                }
-                sb.AppendLine();
-            }
-            
-            // Battle history
-            if (snapshot.BattleHistory.Any())
-            {
-                sb.AppendLine("=== BATTLE HISTORY ===");
-                foreach (var battle in TakeLast(snapshot.BattleHistory, 5))
-                {
-                    sb.AppendLine($"- {battle}");
-                }
-                sb.AppendLine();
-            }
-            
-            return sb.ToString();
+            return ContextFormatter.FormatChoiceContext(snapshot);
         }
         
         #region Helper Methods
@@ -1243,8 +978,9 @@ namespace AINarrator
     
     /// <summary>
     /// Comprehensive data snapshot of colony state for LLM context.
+    /// Implements IColonySnapshot for shared formatting.
     /// </summary>
-    public class ColonySnapshot
+    public class ColonySnapshot : IColonySnapshot
     {
         // Basic colony info
         public string ColonyName { get; set; } = "Unknown Colony";
@@ -1302,12 +1038,29 @@ namespace AINarrator
         // Historical data
         public List<string> DeathRecords { get; set; } = new List<string>();
         public List<string> BattleHistory { get; set; } = new List<string>();
+        
+        // IColonySnapshot interface implementation
+        IReadOnlyList<IColonistInfo> IColonySnapshot.ColonistDetails => ColonistDetails.Cast<IColonistInfo>().ToList();
+        IReadOnlyList<string> IColonySnapshot.RecentInteractions => RecentInteractions;
+        IReadOnlyList<string> IColonySnapshot.RecentActivities => RecentActivities;
+        IReadOnlyList<string> IColonySnapshot.RecentEvents => RecentEvents;
+        IEnvironmentInfo IColonySnapshot.Environment => Environment;
+        IReadOnlyDictionary<string, string> IColonySnapshot.Resources => Resources;
+        IReadOnlyList<IFactionRelationInfo> IColonySnapshot.FactionRelations => FactionRelations.Cast<IFactionRelationInfo>().ToList();
+        IReadOnlyList<IPrisonerInfo> IColonySnapshot.Prisoners => Prisoners.Cast<IPrisonerInfo>().ToList();
+        IReadOnlyList<string> IColonySnapshot.Animals => Animals;
+        IReadOnlyList<string> IColonySnapshot.ActiveThreats => ActiveThreats;
+        IReadOnlyList<string> IColonySnapshot.NotableItems => NotableItems;
+        IInfrastructureInfo IColonySnapshot.Infrastructure => Infrastructure;
+        IReadOnlyList<string> IColonySnapshot.DeathRecords => DeathRecords;
+        IReadOnlyList<string> IColonySnapshot.BattleHistory => BattleHistory;
     }
     
     /// <summary>
     /// Detailed colonist information.
+    /// Implements IColonistInfo for shared formatting.
     /// </summary>
-    public class ColonistDetail
+    public class ColonistDetail : IColonistInfo
     {
         public string Name { get; set; }
         public string ShortName { get; set; }
@@ -1341,6 +1094,12 @@ namespace AINarrator
         // Current activity
         public string CurrentActivity { get; set; }
         
+        // IColonistInfo interface implementation
+        IReadOnlyList<string> IColonistInfo.Traits => Traits;
+        IReadOnlyList<string> IColonistInfo.Injuries => Injuries;
+        IReadOnlyList<string> IColonistInfo.TopSkills => TopSkills;
+        IReadOnlyList<string> IColonistInfo.Relationships => Relationships;
+        
         /// <summary>
         /// Short summary for backward compatibility.
         /// </summary>
@@ -1353,84 +1112,43 @@ namespace AINarrator
         
         /// <summary>
         /// Detailed summary for narration context.
+        /// Uses shared ContextFormatter.
         /// </summary>
         public string ToDetailedSummary()
         {
-            var sb = new StringBuilder();
-            sb.Append($"• {Name} ({Age}y {Gender} {Role})");
-            
-            if (Traits.Any())
-            {
-                sb.Append($" - Traits: {string.Join(", ", Traits)}");
-            }
-            
-            if (HealthStatus != "healthy")
-            {
-                sb.Append($" [Health: {HealthPercent}% - {HealthStatus}]");
-            }
-            
-            if (MentalState != "stable")
-            {
-                sb.Append($" [Mood: {MoodPercent}% - {MentalState}]");
-            }
-            
-            return sb.ToString();
+            return ContextFormatter.FormatColonistDetail(this);
         }
         
         /// <summary>
         /// Full summary for choice context.
+        /// Uses shared ContextFormatter.
         /// </summary>
         public string ToFullSummary()
         {
-            var sb = new StringBuilder();
-            sb.AppendLine($"• {Name} ({Age}y {Gender}, {Role})");
-            
-            if (!string.IsNullOrEmpty(ChildhoodBackstory) || !string.IsNullOrEmpty(AdulthoodBackstory))
-            {
-                sb.AppendLine($"  Background: {ChildhoodBackstory} / {AdulthoodBackstory}");
-            }
-            
-            if (Traits.Any())
-            {
-                sb.AppendLine($"  Traits: {string.Join(", ", Traits)}");
-            }
-            
-            if (TopSkills.Any())
-            {
-                sb.AppendLine($"  Skills: {string.Join(", ", TopSkills.Take(3))}");
-            }
-            
-            sb.AppendLine($"  Health: {HealthPercent}% ({HealthStatus}) | Mood: {MoodPercent}% ({MentalState})");
-            
-            if (Relationships.Any())
-            {
-                sb.AppendLine($"  Relations: {string.Join("; ", Relationships.Take(3))}");
-            }
-            
-            if (!string.IsNullOrEmpty(CurrentActivity) && CurrentActivity != "idle")
-            {
-                sb.AppendLine($"  Currently: {CurrentActivity}");
-            }
-            
-            return sb.ToString();
+            return ContextFormatter.FormatColonistFull(this);
         }
     }
     
     /// <summary>
     /// Environment information.
+    /// Implements IEnvironmentInfo for shared formatting.
     /// </summary>
-    public class EnvironmentInfo
+    public class EnvironmentInfo : IEnvironmentInfo
     {
         public string Weather { get; set; } = "clear";
         public string TimeOfDay { get; set; } = "midday";
         public string Temperature { get; set; } = "comfortable";
         public List<string> ActiveConditions { get; set; } = new List<string>();
+        
+        // IEnvironmentInfo interface implementation
+        IReadOnlyList<string> IEnvironmentInfo.ActiveConditions => ActiveConditions;
     }
     
     /// <summary>
     /// Faction relation information.
+    /// Implements IFactionRelationInfo for shared formatting.
     /// </summary>
-    public class FactionRelationInfo
+    public class FactionRelationInfo : IFactionRelationInfo
     {
         public string Name { get; set; }
         public string FactionType { get; set; }
@@ -1440,14 +1158,15 @@ namespace AINarrator
         
         public override string ToString()
         {
-            return $"{Name} ({FactionType}): {RelationType} (Goodwill: {Goodwill})";
+            return ContextFormatter.FormatFactionRelation(this);
         }
     }
     
     /// <summary>
     /// Prisoner information.
+    /// Implements IPrisonerInfo for shared formatting.
     /// </summary>
-    public class PrisonerInfo
+    public class PrisonerInfo : IPrisonerInfo
     {
         public string Name { get; set; }
         public string OriginalFaction { get; set; }
@@ -1457,14 +1176,15 @@ namespace AINarrator
         
         public override string ToString()
         {
-            return $"{Name} (from {OriginalFaction}) - Health: {HealthPercent}%, Recruitment resistance: {RecruitDifficulty}";
+            return ContextFormatter.FormatPrisoner(this);
         }
     }
     
     /// <summary>
     /// Infrastructure information.
+    /// Implements IInfrastructureInfo for shared formatting.
     /// </summary>
-    public class InfrastructureInfo
+    public class InfrastructureInfo : IInfrastructureInfo
     {
         public int HospitalBeds { get; set; }
         public int Turrets { get; set; }
@@ -1472,6 +1192,41 @@ namespace AINarrator
         public int PowerGeneration { get; set; }
         public string ResearchCompleted { get; set; }
         public string TechLevel { get; set; }
+    }
+    
+    /// <summary>
+    /// Event information for narration context.
+    /// Implements IEventInfo for shared formatting.
+    /// </summary>
+    public class EventInfo : IEventInfo
+    {
+        public string Label { get; set; }
+        public string Category { get; set; }
+        public string FactionName { get; set; }
+        public string ThreatLevel { get; set; }
+        
+        /// <summary>
+        /// Create EventInfo from RimWorld IncidentDef and IncidentParms.
+        /// </summary>
+        public static EventInfo FromIncident(IncidentDef incidentDef, IncidentParms parms)
+        {
+            if (incidentDef == null) return null;
+            
+            string threatLevel = null;
+            if (parms?.points > 0)
+            {
+                threatLevel = parms.points < 300 ? "minor" : 
+                             parms.points < 800 ? "moderate" : "major";
+            }
+            
+            return new EventInfo
+            {
+                Label = incidentDef.label,
+                Category = incidentDef.category?.defName ?? "Misc",
+                FactionName = parms?.faction?.Name,
+                ThreatLevel = threatLevel
+            };
+        }
     }
     
     #endregion

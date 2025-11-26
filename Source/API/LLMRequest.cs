@@ -34,6 +34,13 @@ namespace AINarrator
         [JsonProperty("content")]
         public string Content { get; set; }
         
+        /// <summary>
+        /// Reasoning content from reasoning models (e.g., gemini-3-pro-preview, o1).
+        /// These models put their "thinking" in this field and final answer in Content.
+        /// </summary>
+        [JsonProperty("reasoning")]
+        public string Reasoning { get; set; }
+        
         public ChatMessage() { }
         
         public ChatMessage(string role, string content)
@@ -41,6 +48,13 @@ namespace AINarrator
             Role = role;
             Content = content;
         }
+        
+        /// <summary>
+        /// Returns true if this is a reasoning model response with empty content.
+        /// This typically means the model ran out of tokens during reasoning.
+        /// </summary>
+        public bool IsEmptyReasoningResponse => 
+            string.IsNullOrEmpty(Content) && !string.IsNullOrEmpty(Reasoning);
     }
     
     // Response DTOs
@@ -96,6 +110,21 @@ namespace AINarrator
     }
     
     // Choice Event DTOs
+    
+    /// <summary>
+    /// Response containing multiple choice events from LLM.
+    /// One event will be randomly selected for presentation.
+    /// </summary>
+    public class MultipleChoiceEventsResponse
+    {
+        public List<ChoiceEvent> Events { get; set; }
+        
+        public MultipleChoiceEventsResponse()
+        {
+            Events = new List<ChoiceEvent>();
+        }
+    }
+    
     public class ChoiceEvent
     {
         public string NarrativeText { get; set; }

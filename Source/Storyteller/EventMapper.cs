@@ -83,6 +83,7 @@ namespace AINarrator
         private static void SpawnPawn(Dictionary<string, object> parameters, Map map)
         {
             string kind = GetParam<string>(parameters, "kind", "Colonist");
+            bool isRefugee = kind.ToLower() == "refugee";
             
             // Find spawn location
             IntVec3 spawnLoc;
@@ -96,13 +97,15 @@ namespace AINarrator
             }
             
             // Generate pawn
-            PawnKindDef pawnKind = kind.ToLower() == "refugee" 
+            // Refugees need null faction so they can be set as guest of player
+            // Colonists are generated directly as player faction members
+            PawnKindDef pawnKind = isRefugee 
                 ? PawnKindDefOf.Refugee 
                 : PawnKindDefOf.Colonist;
             
             Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
                 pawnKind,
-                Faction.OfPlayer,
+                isRefugee ? null : Faction.OfPlayer,
                 PawnGenerationContext.NonPlayer,
                 map.Tile,
                 forceGenerateNewPawn: true,
@@ -114,7 +117,7 @@ namespace AINarrator
             GenSpawn.Spawn(pawn, spawnLoc, map);
             
             // Add as colonist or guest based on kind
-            if (kind.ToLower() == "refugee")
+            if (isRefugee)
             {
                 pawn.guest?.SetGuestStatus(Faction.OfPlayer, GuestStatus.Guest);
             }

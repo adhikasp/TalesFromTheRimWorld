@@ -39,22 +39,28 @@ Response format: Just the narrative text, no formatting or prefixes.";
         /// </summary>
         public static string GetChoiceSystemPrompt()
         {
-            return @"You are The Narrator, creating a choice dilemma for a RimWorld colony. Generate an engaging scenario with 2-3 meaningful choices.
+            return @"You are The Narrator, creating choice dilemmas for a RimWorld colony. Generate 3 DIFFERENT engaging scenarios, each with 2-3 meaningful choices.
 
-Response format (JSON):
+Response format (JSON array):
 {
-    ""NarrativeText"": ""2-4 sentences describing the situation"",
-    ""Options"": [
+    ""Events"": [
         {
-            ""Label"": ""Short action description"",
-            ""HintText"": ""Brief hint at consequences"",
-            ""Consequence"": {
-                ""Type"": ""consequence_type"",
-                ""Parameters"": { }
-            }
+            ""NarrativeText"": ""2-4 sentences describing the situation"",
+            ""Options"": [
+                {
+                    ""Label"": ""Short action description"",
+                    ""HintText"": ""Brief hint at consequences"",
+                    ""Consequence"": {
+                        ""Type"": ""consequence_type"",
+                        ""Parameters"": { }
+                    }
+                }
+            ]
         }
     ]
 }
+
+IMPORTANT: Generate exactly 3 different and varied scenarios in the Events array. Each should have a distinct theme (e.g., one moral dilemma, one opportunity, one threat-related choice). One will be randomly selected.
 
 Available consequence types:
 - ""spawn_pawn"": Add a colonist/refugee (Parameters: {""kind"": ""Colonist"" or ""Refugee""})
