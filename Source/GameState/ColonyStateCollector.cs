@@ -398,11 +398,17 @@ namespace AINarrator
                     if (currentTick - entry.Tick > recentTicks) break;
                     
                     // Social interactions - use the text representation
-                    if (entry is PlayLogEntry_Interaction)
+                    if (entry is PlayLogEntry_Interaction interactionEntry)
                     {
                         try
                         {
-                            string text = entry.ToGameStringFromPOV(null);
+                            var pov = interactionEntry.GetConcerns()?.FirstOrDefault();
+                            if (pov == null)
+                            {
+                                continue;
+                            }
+
+                            string text = entry.ToGameStringFromPOV(pov);
                             if (!string.IsNullOrEmpty(text) && text.Length < 150)
                             {
                                 interactions.Add(text);
