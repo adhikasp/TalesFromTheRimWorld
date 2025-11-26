@@ -3,7 +3,7 @@
   <!-- The Narrator Storyteller Definition -->
   <!-- ParentName="BaseStoryteller" inherits required population curves and other base properties -->
   <StorytellerDef ParentName="BaseStoryteller">
-    <defName>LLMNarrator</defName>
+    <defName>TalesFromTheRimWorld</defName>
     <label>The Narrator</label>
     <description>An AI author who weaves your colony's struggles into an unfolding narrative. Events carry meaning, context, and consequence.
 

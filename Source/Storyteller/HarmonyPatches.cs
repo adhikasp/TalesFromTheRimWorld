@@ -52,6 +52,12 @@ namespace AINarrator
         
         private static bool ShouldIntercept(FiringIncident fi)
         {
+            // Only intercept if "The Narrator" storyteller is active
+            if (Find.Storyteller == null || Find.Storyteller.def == null || Find.Storyteller.def.defName != "TalesFromTheRimWorld")
+            {
+                return false;
+            }
+            
             // Check settings
             if (!AINarratorMod.Settings.ShowNarrativeNotifications) return false;
             if (!AINarratorMod.Settings.IsConfigured()) return false;
