@@ -20,6 +20,7 @@ namespace AINarrator.Test
             {
                 ColonyName = "New Hope",
                 ColonyAgeDays = 3,
+                ScenarioName = "Crashlanded (classic start)",
                 Season = "spring",
                 Biome = "temperate forest",
                 Quadrum = "Aprimay",
@@ -145,6 +146,7 @@ namespace AINarrator.Test
             {
                 ColonyName = "Ironhold",
                 ColonyAgeDays = 45,
+                ScenarioName = "Crashlanded (established colony)",
                 Season = "summer",
                 Biome = "arid shrubland",
                 Quadrum = "Jugust",
@@ -389,6 +391,7 @@ namespace AINarrator.Test
             {
                 ColonyName = "New Arcadia",
                 ColonyAgeDays = 180,
+                ScenarioName = "Crashlanded (late game colony)",
                 Season = "fall",
                 Biome = "boreal forest",
                 Quadrum = "Septober",
@@ -572,6 +575,7 @@ namespace AINarrator.Test
             {
                 ColonyName = "Last Stand",
                 ColonyAgeDays = 90,
+                ScenarioName = "Lost Tribe (extreme ice sheet challenge)",
                 Season = "winter",
                 Biome = "ice sheet",
                 Quadrum = "Decembary",
@@ -727,6 +731,7 @@ namespace AINarrator.Test
         public string Biome { get; set; }
         public string Quadrum { get; set; }
         public int Year { get; set; }
+        public string ScenarioName { get; set; } = "Unknown scenario";
         public int WealthTotal { get; set; }
         public int ColonistCount { get; set; }
         public int PrisonerCount { get; set; }

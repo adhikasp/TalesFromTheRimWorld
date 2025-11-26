@@ -33,6 +33,10 @@ namespace AINarrator
             sb.AppendLine($"Day {snapshot.ColonyAgeDays} - {snapshot.Quadrum}, Year {snapshot.Year}");
             sb.AppendLine($"Season: {snapshot.Season} | Biome: {snapshot.Biome}");
             sb.AppendLine($"Population: {snapshot.ColonistCount} colonists, {snapshot.PrisonerCount} prisoners");
+            if (!string.IsNullOrWhiteSpace(snapshot.ScenarioName))
+            {
+                sb.AppendLine($"Scenario: {snapshot.ScenarioName}");
+            }
             sb.AppendLine();
             
             // Environment
@@ -182,6 +186,10 @@ namespace AINarrator
             sb.AppendLine($"=== COLONY: {snapshot.ColonyName} ===");
             sb.AppendLine($"Day {snapshot.ColonyAgeDays}, {snapshot.Season}, {snapshot.Biome}");
             sb.AppendLine($"Population: {snapshot.ColonistCount} colonists");
+            if (!string.IsNullOrWhiteSpace(snapshot.ScenarioName))
+            {
+                sb.AppendLine($"Scenario: {snapshot.ScenarioName}");
+            }
             sb.AppendLine();
             
             // Environment for atmosphere

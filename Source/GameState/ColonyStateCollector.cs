@@ -36,6 +36,7 @@ namespace AINarrator
                 Biome = map.Biome?.label ?? "unknown",
                 Quadrum = GenDate.Quadrum(Find.TickManager.TicksAbs, Find.WorldGrid.LongLatOf(map.Tile).x).Label(),
                 Year = GenLocalDate.Year(map),
+                ScenarioName = GetScenarioName(),
                 
                 // Wealth and threat
                 WealthTotal = (int)map.wealthWatcher.WealthTotal,
@@ -135,6 +136,20 @@ namespace AINarrator
             
             var faction = Faction.OfPlayer;
             return faction?.Name ?? "The Colony";
+        }
+
+        private static string GetScenarioName()
+        {
+            var scenario = Current.Game?.Scenario ?? Find.Scenario;
+            if (scenario == null) return "Unknown scenario";
+
+            var scenarioName = scenario.name;
+            if (!string.IsNullOrWhiteSpace(scenarioName))
+            {
+                return scenarioName;
+            }
+
+            return "Custom scenario";
         }
         
         #endregion
@@ -1124,6 +1139,7 @@ namespace AINarrator
         public string Biome { get; set; } = "unknown";
         public string Quadrum { get; set; } = "unknown";
         public int Year { get; set; } = 5500;
+        public string ScenarioName { get; set; } = "Unknown scenario";
         
         // Wealth and threat
         public int WealthTotal { get; set; }

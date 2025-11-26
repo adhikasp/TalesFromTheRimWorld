@@ -15,6 +15,7 @@ namespace AINarrator
         string Biome { get; }
         string Quadrum { get; }
         int Year { get; }
+        string ScenarioName { get; }
         
         // Wealth
         int WealthTotal { get; }
