@@ -745,6 +745,7 @@ namespace AINarrator.Test
         public List<string> Animals { get; set; } = new List<string>();
         public List<string> NotableItems { get; set; } = new List<string>();
         public MockInfrastructure Infrastructure { get; set; }
+        public MockRoomSummary RoomSummary { get; set; } = new MockRoomSummary();
         
         // IColonySnapshot interface implementation
         IReadOnlyList<IColonistInfo> IColonySnapshot.ColonistDetails => Colonists.Cast<IColonistInfo>().ToList();
@@ -759,6 +760,7 @@ namespace AINarrator.Test
         IReadOnlyList<string> IColonySnapshot.ActiveThreats => ActiveThreats;
         IReadOnlyList<string> IColonySnapshot.NotableItems => NotableItems;
         IInfrastructureInfo IColonySnapshot.Infrastructure => Infrastructure;
+        IRoomSummaryInfo IColonySnapshot.RoomSummary => RoomSummary;
         IReadOnlyList<string> IColonySnapshot.DeathRecords => DeathRecords;
         IReadOnlyList<string> IColonySnapshot.BattleHistory => BattleHistory;
     }
@@ -841,6 +843,23 @@ namespace AINarrator.Test
         public int Mortars { get; set; }
         public int PowerGeneration { get; set; }
         public string ResearchCompleted { get; set; }
+    }
+    
+    /// <summary>
+    /// Mock room summary implementing IRoomSummaryInfo for shared formatting.
+    /// </summary>
+    public class MockRoomSummary : IRoomSummaryInfo
+    {
+        public int PrivateBedrooms { get; set; }
+        public int Barracks { get; set; }
+        public int DiningRooms { get; set; }
+        public int Kitchens { get; set; }
+        public int RecreationRooms { get; set; }
+        public int Hospitals { get; set; }
+        public int PrisonCells { get; set; }
+        public List<string> Highlights { get; set; } = new List<string>();
+        
+        IReadOnlyList<string> IRoomSummaryInfo.Highlights => Highlights;
     }
 
     #endregion

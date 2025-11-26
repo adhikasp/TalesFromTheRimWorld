@@ -15,6 +15,10 @@ namespace AINarrator
     /// </summary>
     public static class ColonyStateCollector
     {
+        private static readonly RoomRoleDef DiningRoomRole = DefDatabase<RoomRoleDef>.GetNamedSilentFail("DiningRoom");
+        private static readonly RoomRoleDef KitchenRole = DefDatabase<RoomRoleDef>.GetNamedSilentFail("Kitchen");
+        private static readonly RoomRoleDef RecRoomRole = DefDatabase<RoomRoleDef>.GetNamedSilentFail("RecRoom");
+        
         /// <summary>
         /// Get a comprehensive snapshot of the current colony state.
         /// </summary>
@@ -74,6 +78,9 @@ namespace AINarrator
                 
                 // Infrastructure
                 Infrastructure = GetInfrastructure(map),
+                
+                // Rooms & comfort
+                RoomSummary = GetRoomSummary(map),
                 
                 // Historical data from StoryContext
                 DeathRecords = StoryContext.Instance?.ColonistDeaths?.Select(d => d.ToString()).ToList() ?? new List<string>(),
@@ -727,7 +734,9 @@ namespace AINarrator
                 // Create a snapshot to avoid "Collection was modified" errors
                 foreach (var animal in map.mapPawns.SpawnedColonyAnimals.ToList())
                 {
-                    string animalInfo = animal.LabelCap;
+                    string animalName = animal.LabelShortCap ?? animal.LabelCap;
+                    string kindLabel = animal.kindDef?.label ?? animal.def?.label ?? "animal";
+                    string animalInfo = $"{animalName} ({kindLabel.CapitalizeFirst()})";
                     
                     // Check for bond
                     var master = animal.relations?.GetFirstDirectRelationPawn(PawnRelationDefOf.Bond);
@@ -809,11 +818,20 @@ namespace AINarrator
                     threats.Add($"{manhunters.Count} manhunting animals");
                 }
                 
-                // Check for infestations
+                // Check for infestations (only include discovered/awake hives)
                 var hives = map.listerThings.ThingsOfDef(ThingDefOf.Hive);
-                if (hives.Any())
+                var activeHives = hives
+                    .Where(hive =>
+                    {
+                        if (!hive.Spawned) return false;
+                        if (hive.Position.Fogged(map)) return false;
+                        var dormantComp = hive.TryGetComp<CompCanBeDormant>();
+                        return dormantComp?.Awake ?? true;
+                    })
+                    .ToList();
+                if (activeHives.Any())
                 {
-                    threats.Add($"Infestation ({hives.Count} hives)");
+                    threats.Add($"Infestation ({activeHives.Count} hives)");
                 }
                 
                 // Check game conditions for threats
@@ -972,6 +990,117 @@ namespace AINarrator
         }
         
         #endregion
+        
+        #region Rooms
+        
+        private static RoomSummaryInfo GetRoomSummary(Map map)
+        {
+            var info = new RoomSummaryInfo();
+            
+            try
+            {
+                var rooms = new HashSet<Room>();
+                foreach (var building in map.listerBuildings.allBuildingsColonist)
+                {
+                    var room = building.GetRoom();
+                    if (room == null || !room.ProperRoom || room.PsychologicallyOutdoors) continue;
+                    rooms.Add(room);
+                }
+                if (rooms.Count == 0) return info;
+                
+                var highlights = new Dictionary<string, RoomHighlight>();
+                
+                foreach (var room in rooms)
+                {
+                    if (room == null || !room.ProperRoom || room.PsychologicallyOutdoors) continue;
+                    
+                    var role = room.Role;
+                    if (role == null) continue;
+                    
+                    if (role == RoomRoleDefOf.Bedroom)
+                    {
+                        info.PrivateBedrooms++;
+                        ConsiderRoomHighlight(room, "bedroom", highlights);
+                    }
+                    else if (role == RoomRoleDefOf.Barracks)
+                    {
+                        info.Barracks++;
+                        ConsiderRoomHighlight(room, "barracks", highlights);
+                    }
+                    else if (role == DiningRoomRole)
+                    {
+                        info.DiningRooms++;
+                        ConsiderRoomHighlight(room, "dining room", highlights);
+                    }
+                    else if (role == KitchenRole)
+                    {
+                        info.Kitchens++;
+                        ConsiderRoomHighlight(room, "kitchen", highlights);
+                    }
+                    else if (role == RecRoomRole)
+                    {
+                        info.RecreationRooms++;
+                        ConsiderRoomHighlight(room, "recreation room", highlights);
+                    }
+                    else if (role == RoomRoleDefOf.Hospital)
+                    {
+                        info.Hospitals++;
+                        ConsiderRoomHighlight(room, "hospital", highlights);
+                    }
+                    else if (role == RoomRoleDefOf.PrisonCell || role == RoomRoleDefOf.PrisonBarracks)
+                    {
+                        info.PrisonCells++;
+                        ConsiderRoomHighlight(room, "prison", highlights);
+                    }
+                }
+                
+                info.Highlights = highlights.Values
+                    .OrderByDescending(h => h.Impressiveness)
+                    .Select(h => h.Description)
+                    .Take(5)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[AI Narrator] Error analyzing rooms: {ex.Message}");
+            }
+            
+            return info;
+        }
+        
+        private static void ConsiderRoomHighlight(Room room, string key, Dictionary<string, RoomHighlight> highlights)
+        {
+            float impressiveness = 0f;
+            try
+            {
+                impressiveness = room.GetStat(RoomStatDefOf.Impressiveness);
+            }
+            catch
+            {
+                // Stat calculation can fail for unfinished rooms; treat as zero.
+            }
+            
+            string description = $"{room.Role?.LabelCap ?? "Room"} - {impressiveness:F0} impressiveness";
+            
+            if (highlights.TryGetValue(key, out var existing) && impressiveness <= existing.Impressiveness)
+            {
+                return;
+            }
+            
+            highlights[key] = new RoomHighlight
+            {
+                Impressiveness = impressiveness,
+                Description = description
+            };
+        }
+        
+        private struct RoomHighlight
+        {
+            public float Impressiveness;
+            public string Description;
+        }
+        
+        #endregion
     }
     
     #region Data Classes
@@ -1035,6 +1164,9 @@ namespace AINarrator
         // Infrastructure
         public InfrastructureInfo Infrastructure { get; set; }
         
+        // Rooms
+        public RoomSummaryInfo RoomSummary { get; set; } = new RoomSummaryInfo();
+        
         // Historical data
         public List<string> DeathRecords { get; set; } = new List<string>();
         public List<string> BattleHistory { get; set; } = new List<string>();
@@ -1052,6 +1184,7 @@ namespace AINarrator
         IReadOnlyList<string> IColonySnapshot.ActiveThreats => ActiveThreats;
         IReadOnlyList<string> IColonySnapshot.NotableItems => NotableItems;
         IInfrastructureInfo IColonySnapshot.Infrastructure => Infrastructure;
+        IRoomSummaryInfo IColonySnapshot.RoomSummary => RoomSummary;
         IReadOnlyList<string> IColonySnapshot.DeathRecords => DeathRecords;
         IReadOnlyList<string> IColonySnapshot.BattleHistory => BattleHistory;
     }
@@ -1192,6 +1325,23 @@ namespace AINarrator
         public int PowerGeneration { get; set; }
         public string ResearchCompleted { get; set; }
         public string TechLevel { get; set; }
+    }
+    
+    /// <summary>
+    /// Room summary info for base comfort description.
+    /// </summary>
+    public class RoomSummaryInfo : IRoomSummaryInfo
+    {
+        public int PrivateBedrooms { get; set; }
+        public int Barracks { get; set; }
+        public int DiningRooms { get; set; }
+        public int Kitchens { get; set; }
+        public int RecreationRooms { get; set; }
+        public int Hospitals { get; set; }
+        public int PrisonCells { get; set; }
+        public List<string> Highlights { get; set; } = new List<string>();
+        
+        IReadOnlyList<string> IRoomSummaryInfo.Highlights => Highlights;
     }
     
     /// <summary>

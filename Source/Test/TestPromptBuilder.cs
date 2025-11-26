@@ -70,15 +70,6 @@ namespace AINarrator.Test
             sb.AppendLine(ContextFormatter.FormatChoiceContext(context));
             sb.AppendLine();
             sb.AppendLine("TASK: Create a choice dilemma relevant to this colony's current situation. Output as JSON.");
-            sb.AppendLine();
-            sb.AppendLine("Consider these story hooks:");
-
-            // Use shared ContextFormatter for suggestions
-            var suggestions = ContextFormatter.GetChoiceSuggestions(context);
-            foreach (var suggestion in suggestions)
-            {
-                sb.AppendLine($"- {suggestion}");
-            }
 
             return sb.ToString();
         }

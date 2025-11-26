@@ -54,8 +54,9 @@ namespace AINarrator
         // Notable items
         IReadOnlyList<string> NotableItems { get; }
         
-        // Infrastructure
+        // Infrastructure & rooms
         IInfrastructureInfo Infrastructure { get; }
+        IRoomSummaryInfo RoomSummary { get; }
         
         // Historical data
         IReadOnlyList<string> DeathRecords { get; }
@@ -145,6 +146,21 @@ namespace AINarrator
         int Mortars { get; }
         int PowerGeneration { get; }
         string ResearchCompleted { get; }
+    }
+    
+    /// <summary>
+    /// Interface describing notable rooms within the colony base.
+    /// </summary>
+    public interface IRoomSummaryInfo
+    {
+        int PrivateBedrooms { get; }
+        int Barracks { get; }
+        int DiningRooms { get; }
+        int Kitchens { get; }
+        int RecreationRooms { get; }
+        int Hospitals { get; }
+        int PrisonCells { get; }
+        IReadOnlyList<string> Highlights { get; }
     }
     
     /// <summary>

@@ -6,6 +6,7 @@
     <AssemblyName>AINarrator.UnitTests</AssemblyName>
     <IsPackable>false</IsPackable>
     <EnableDefaultItems>false</EnableDefaultItems>
+    <DefineConstants>$(DefineConstants);UNIT_TESTS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

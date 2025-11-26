@@ -60,6 +60,33 @@ namespace AINarrator
             }
             sb.AppendLine();
             
+            // Rooms & comfort
+            if (snapshot.RoomSummary != null)
+            {
+                var rooms = snapshot.RoomSummary;
+                int totalRooms = rooms.PrivateBedrooms + rooms.Barracks + rooms.DiningRooms + rooms.Kitchens + rooms.RecreationRooms + rooms.Hospitals + rooms.PrisonCells;
+                bool hasHighlights = rooms.Highlights != null && rooms.Highlights.Any();
+                if (totalRooms > 0 || hasHighlights)
+                {
+                    sb.AppendLine("=== ROOMS & COMFORT ===");
+                    sb.AppendLine($"- Private Bedrooms: {rooms.PrivateBedrooms}");
+                    sb.AppendLine($"- Barracks: {rooms.Barracks}");
+                    sb.AppendLine($"- Dining Rooms: {rooms.DiningRooms}");
+                    sb.AppendLine($"- Kitchens: {rooms.Kitchens}");
+                    sb.AppendLine($"- Recreation Rooms: {rooms.RecreationRooms}");
+                    sb.AppendLine($"- Hospitals: {rooms.Hospitals}");
+                    sb.AppendLine($"- Prison Cells: {rooms.PrisonCells}");
+                    if (hasHighlights)
+                    {
+                        foreach (var highlight in rooms.Highlights.Take(3))
+                        {
+                            sb.AppendLine($"  • {highlight}");
+                        }
+                    }
+                    sb.AppendLine();
+                }
+            }
+            
             // Recent interactions
             if (snapshot.RecentInteractions.Any())
             {
@@ -187,6 +214,33 @@ namespace AINarrator
             }
             sb.AppendLine();
             
+            // Rooms & comfort
+            if (snapshot.RoomSummary != null)
+            {
+                var rooms = snapshot.RoomSummary;
+                int totalRooms = rooms.PrivateBedrooms + rooms.Barracks + rooms.DiningRooms + rooms.Kitchens + rooms.RecreationRooms + rooms.Hospitals + rooms.PrisonCells;
+                bool hasHighlights = rooms.Highlights != null && rooms.Highlights.Any();
+                if (totalRooms > 0 || hasHighlights)
+                {
+                    sb.AppendLine("=== ROOMS & COMFORT ===");
+                    sb.AppendLine($"- Private Bedrooms: {rooms.PrivateBedrooms}");
+                    sb.AppendLine($"- Barracks: {rooms.Barracks}");
+                    sb.AppendLine($"- Dining Rooms: {rooms.DiningRooms}");
+                    sb.AppendLine($"- Kitchens: {rooms.Kitchens}");
+                    sb.AppendLine($"- Recreation Rooms: {rooms.RecreationRooms}");
+                    sb.AppendLine($"- Hospitals: {rooms.Hospitals}");
+                    sb.AppendLine($"- Prison Cells: {rooms.PrisonCells}");
+                    if (hasHighlights)
+                    {
+                        foreach (var highlight in rooms.Highlights)
+                        {
+                            sb.AppendLine($"  • {highlight}");
+                        }
+                    }
+                    sb.AppendLine();
+                }
+            }
+            
             // Faction relations
             if (snapshot.FactionRelations.Any())
             {
@@ -275,6 +329,38 @@ namespace AINarrator
                 }
                 sb.AppendLine();
             }
+            
+            // Story timeline: recent narrations and choices (newest first)
+#if !UNIT_TESTS
+            var storyContext = StoryContext.Instance;
+            if (storyContext?.JournalEntries != null && storyContext.JournalEntries.Any())
+            {
+                // Get narrations (Event) and choices (Choice), sorted by tick descending (newest first)
+                var timelineEntries = storyContext.JournalEntries
+                    .Where(e => e.EntryType == JournalEntryType.Event || e.EntryType == JournalEntryType.Choice)
+                    .OrderByDescending(e => e.GameTick)
+                    .Take(10)  // Limit to most recent 10 entries to manage token budget
+                    .ToList();
+                
+                if (timelineEntries.Any())
+                {
+                    sb.AppendLine("=== RECENT STORY TIMELINE ===");
+                    foreach (var entry in timelineEntries)
+                    {
+                        string prefix = entry.EntryType == JournalEntryType.Choice ? "★ CHOICE" : "● EVENT";
+                        sb.AppendLine($"[{entry.DateString}] {prefix}:");
+                        sb.AppendLine($"  {entry.Text}");
+                        
+                        if (entry.EntryType == JournalEntryType.Choice && !string.IsNullOrEmpty(entry.ChoiceMade))
+                        {
+                            sb.AppendLine($"  → Chose: {entry.ChoiceMade}");
+                        }
+                        
+                        sb.AppendLine();
+                    }
+                }
+            }
+#endif
             
             return sb.ToString();
         }
