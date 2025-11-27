@@ -63,10 +63,12 @@ namespace AINarrator
             var dialog = Dialog_NarrativePopup.CreateLoading("Generating narrative...");
             Find.WindowStack.Add(dialog);
             
-            string systemPrompt = PromptBuilder.GetNarrationSystemPrompt();
-            string userPrompt = ColonyStateCollector.GetNarrationContext() + 
-                "\nCurrent Event: Something stirs on the horizon. The colonists sense change approaching." +
-                "\nTASK: Write atmospheric flavor text for this moment in the colony's story.";
+            // Add debug event context to system prompt
+            string systemPrompt = PromptBuilder.GetNarrationSystemPrompt() + 
+                "\n\nCurrent Event: Something stirs on the horizon. The colonists sense change approaching.";
+            
+            // User prompt contains only the colony context
+            string userPrompt = ColonyStateCollector.GetNarrationContext();
             
             StoryContext.Instance?.RegisterApiCall();
             
