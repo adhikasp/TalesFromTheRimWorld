@@ -32,14 +32,6 @@ namespace AINarrator.Test
 
             _client = new TestOpenRouterClient(_config);
 
-            // Test connection first
-            if (!TestApiConnection())
-            {
-                Console.WriteLine("\nPress any key to exit...");
-                Console.ReadKey();
-                return;
-            }
-
             // Main menu loop
             RunMainMenu();
         }
@@ -139,28 +131,6 @@ namespace AINarrator.Test
             return true;
         }
 
-        static bool TestApiConnection()
-        {
-            Console.WriteLine();
-            Console.WriteLine("Testing API connection...");
-
-            string error;
-            if (_client.TestConnection(out error))
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("✓ API connection successful!");
-                Console.ResetColor();
-                return true;
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"✗ API connection failed: {error}");
-                Console.ResetColor();
-                return false;
-            }
-        }
-
         static void RunMainMenu()
         {
             while (true)
@@ -172,11 +142,9 @@ namespace AINarrator.Test
                 Console.WriteLine("═══════════════════════════════════════════════════════════════");
                 Console.ResetColor();
                 Console.WriteLine();
-                Console.WriteLine("  [1] Test Event Narration");
-                Console.WriteLine("  [2] Test Choice Event Generation");
-                Console.WriteLine("  [3] Run Full Scenario Test (Narration + Choice)");
-                Console.WriteLine("  [4] Test All Scenarios");
-                Console.WriteLine("  [5] Change Model/Settings");
+                Console.WriteLine("  [1] Test API Connection");
+                Console.WriteLine("  [2] Test Event Narration");
+                Console.WriteLine("  [3] Test Choice Event Generation");
                 Console.WriteLine("  [0] Exit");
                 Console.WriteLine();
                 Console.Write("Select option: ");
@@ -186,19 +154,13 @@ namespace AINarrator.Test
                 switch (input)
                 {
                     case "1":
-                        TestEventNarration();
+                        TestApiConnection();
                         break;
                     case "2":
-                        TestChoiceGeneration();
+                        TestEventNarration();
                         break;
                     case "3":
-                        TestFullScenario();
-                        break;
-                    case "4":
-                        TestAllScenarios();
-                        break;
-                    case "5":
-                        ChangeSettings();
+                        TestChoiceGeneration();
                         break;
                     case "0":
                     case "exit":
@@ -210,6 +172,26 @@ namespace AINarrator.Test
                         Console.ResetColor();
                         break;
                 }
+            }
+        }
+
+        static void TestApiConnection()
+        {
+            Console.WriteLine();
+            Console.WriteLine("Testing API connection...");
+
+            string error;
+            if (_client.TestConnection(out error))
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("✓ API connection successful!");
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"✗ API connection failed: {error}");
+                Console.ResetColor();
             }
         }
 
@@ -328,7 +310,7 @@ namespace AINarrator.Test
                 Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
                 Console.ResetColor();
                 Console.WriteLine();
-                Console.WriteLine(WrapText(narration, 70));
+                Console.WriteLine(TextUtils.WrapText(narration, 70));
                 Console.WriteLine();
             }
             catch (Exception ex)
@@ -375,7 +357,7 @@ namespace AINarrator.Test
                     int eventNum = 1;
                     foreach (var choiceEvent in response.Events)
                     {
-                        PrintChoiceEvent(choiceEvent, eventNum++);
+                        TextUtils.PrintChoiceEvent(choiceEvent, eventNum++);
                     }
                 }
                 else
@@ -397,8 +379,46 @@ namespace AINarrator.Test
                 Console.ResetColor();
             }
         }
+    }
 
-        static void PrintChoiceEvent(ChoiceEvent evt, int eventNumber)
+    /// <summary>
+    /// Utility class for text formatting and display.
+    /// </summary>
+    public static class TextUtils
+    {
+        public static string WrapText(string text, int width)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            var lines = new List<string>();
+            var words = text.Split(' ');
+            var currentLine = "";
+
+            foreach (var word in words)
+            {
+                if (currentLine.Length + word.Length + 1 <= width)
+                {
+                    currentLine += (currentLine.Length > 0 ? " " : "") + word;
+                }
+                else
+                {
+                    if (currentLine.Length > 0)
+                    {
+                        lines.Add(currentLine);
+                    }
+                    currentLine = word;
+                }
+            }
+
+            if (currentLine.Length > 0)
+            {
+                lines.Add(currentLine);
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        public static void PrintChoiceEvent(ChoiceEvent evt, int eventNumber)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"╔══════════════════════════════════════════════════════════════╗");
@@ -437,82 +457,153 @@ namespace AINarrator.Test
             }
             Console.WriteLine();
         }
+    }
 
-        static void TestFullScenario()
+    /// <summary>
+    /// Programmatic runner for full scenario tests.
+    /// Use this class to run scenarios without interactive menu.
+    /// </summary>
+    public static class ScenarioRunner
+    {
+        /// <summary>
+        /// Run a full scenario test (narration + choice) with a specific scenario and event.
+        /// </summary>
+        /// <param name="config">Test configuration with API key and model settings.</param>
+        /// <param name="scenario">Colony context scenario.</param>
+        /// <param name="evt">Event to narrate.</param>
+        /// <param name="verbose">If true, prints detailed output to console.</param>
+        /// <returns>Result containing narration and choice event.</returns>
+        public static ScenarioResult RunFullScenario(TestConfig config, MockColonyContext scenario, MockEvent evt, bool verbose = true)
         {
-            var scenario = SelectScenario();
-            var mockEvent = SelectEvent();
+            var client = new TestOpenRouterClient(config);
+            var result = new ScenarioResult
+            {
+                ScenarioName = scenario.ColonyName,
+                ColonyAgeDays = scenario.ColonyAgeDays,
+                EventLabel = evt.Label
+            };
 
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("═══════════════════════════════════════════════════════════════");
-            Console.WriteLine($"  FULL SCENARIO TEST: {scenario.ColonyName} (Day {scenario.ColonyAgeDays})");
-            Console.WriteLine("═══════════════════════════════════════════════════════════════");
-            Console.ResetColor();
+            if (verbose)
+            {
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine("═══════════════════════════════════════════════════════════════");
+                Console.WriteLine($"  FULL SCENARIO TEST: {scenario.ColonyName} (Day {scenario.ColonyAgeDays})");
+                Console.WriteLine($"  Event: {evt.Label}");
+                Console.WriteLine("═══════════════════════════════════════════════════════════════");
+                Console.ResetColor();
+            }
 
             // Part 1: Event Narration
-            Console.WriteLine();
-            Console.WriteLine("PART 1: Event Narration");
-            Console.WriteLine("------------------------");
-
-            try
+            if (verbose)
             {
-                string narration = _client.RequestNarration(
-                    TestPromptBuilder.GetNarrationSystemPrompt(),
-                    TestPromptBuilder.BuildEventPrompt(scenario, mockEvent));
-
-                Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine();
-                Console.WriteLine(WrapText(narration, 70));
-                Console.ResetColor();
+                Console.WriteLine("PART 1: Event Narration");
+                Console.WriteLine("------------------------");
             }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Narration Error: {ex.Message}");
-                Console.ResetColor();
-            }
-
-            // Part 2: Choice Event
-            Console.WriteLine();
-            Console.WriteLine("PART 2: Choice Event");
-            Console.WriteLine("--------------------");
 
             try
             {
-                var response = _client.RequestChoiceEvent(
-                    TestPromptBuilder.GetChoiceSystemPrompt(),
-                    TestPromptBuilder.BuildChoicePrompt(scenario));
+                string narration = client.RequestNarration(
+                    TestPromptBuilder.GetNarrationSystemPrompt(),
+                    TestPromptBuilder.BuildEventPrompt(scenario, evt));
 
-                if (response.Success && response.Events.Count > 0)
+                result.Narration = narration;
+                result.NarrationSuccess = true;
+
+                if (verbose)
                 {
-                    // Show just one event (randomly selected in real game)
-                    var selectedEvent = response.Events[0];
-                    PrintChoiceEvent(selectedEvent, 1);
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"Choice Error: {response.Error}");
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine();
+                    Console.WriteLine(TextUtils.WrapText(narration, 70));
                     Console.ResetColor();
                 }
             }
             catch (Exception ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Choice Error: {ex.Message}");
-                Console.ResetColor();
+                result.NarrationError = ex.Message;
+                result.NarrationSuccess = false;
+
+                if (verbose)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Narration Error: {ex.Message}");
+                    Console.ResetColor();
+                }
             }
+
+            // Part 2: Choice Event
+            if (verbose)
+            {
+                Console.WriteLine();
+                Console.WriteLine("PART 2: Choice Event");
+                Console.WriteLine("--------------------");
+            }
+
+            try
+            {
+                var response = client.RequestChoiceEvent(
+                    TestPromptBuilder.GetChoiceSystemPrompt(),
+                    TestPromptBuilder.BuildChoicePrompt(scenario));
+
+                if (response.Success && response.Events.Count > 0)
+                {
+                    result.ChoiceEvent = response.Events[0];
+                    result.ChoiceSuccess = true;
+
+                    if (verbose)
+                    {
+                        TextUtils.PrintChoiceEvent(result.ChoiceEvent, 1);
+                    }
+                }
+                else
+                {
+                    result.ChoiceError = response.Error;
+                    result.ChoiceSuccess = false;
+
+                    if (verbose)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"Choice Error: {response.Error}");
+                        Console.ResetColor();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                result.ChoiceError = ex.Message;
+                result.ChoiceSuccess = false;
+
+                if (verbose)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Choice Error: {ex.Message}");
+                    Console.ResetColor();
+                }
+            }
+
+            return result;
         }
 
-        static void TestAllScenarios()
+        /// <summary>
+        /// Run all predefined scenario tests.
+        /// </summary>
+        /// <param name="config">Test configuration with API key and model settings.</param>
+        /// <param name="verbose">If true, prints detailed output to console.</param>
+        /// <returns>List of results for all scenarios.</returns>
+        public static List<ScenarioResult> RunAllScenarios(TestConfig config, bool verbose = true)
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("═══════════════════════════════════════════════════════════════");
-            Console.WriteLine("              TESTING ALL SCENARIOS                            ");
-            Console.WriteLine("═══════════════════════════════════════════════════════════════");
-            Console.ResetColor();
+            var results = new List<ScenarioResult>();
+
+            if (verbose)
+            {
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine("═══════════════════════════════════════════════════════════════");
+                Console.WriteLine("              TESTING ALL SCENARIOS                            ");
+                Console.WriteLine("═══════════════════════════════════════════════════════════════");
+                Console.ResetColor();
+            }
 
             var scenarios = new List<(string Name, MockColonyContext Context, MockEvent Event)>
             {
@@ -526,112 +617,76 @@ namespace AINarrator.Test
 
             foreach (var (name, context, evt) in scenarios)
             {
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"─── {name} ───");
+                if (verbose)
+                {
+                    Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"─── {name} ───");
+                    Console.ResetColor();
+                }
+
+                var result = RunFullScenario(config, context, evt, verbose);
+                result.TestName = name;
+                results.Add(result);
+            }
+
+            if (verbose)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("\n✓ All scenarios tested!");
                 Console.ResetColor();
 
-                try
+                // Summary
+                int successCount = 0;
+                int failCount = 0;
+                foreach (var r in results)
                 {
-                    string narration = _client.RequestNarration(
-                        TestPromptBuilder.GetNarrationSystemPrompt(),
-                        TestPromptBuilder.BuildEventPrompt(context, evt));
-
+                    if (r.NarrationSuccess && r.ChoiceSuccess) successCount++;
+                    else failCount++;
+                }
+                Console.WriteLine($"  Success: {successCount}/{results.Count}");
+                if (failCount > 0)
+                {
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine(WrapText(narration, 70));
+                    Console.WriteLine($"  Failed: {failCount}/{results.Count}");
                     Console.ResetColor();
                 }
-                catch (Exception ex)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"Error: {ex.Message}");
-                    Console.ResetColor();
-                }
-
-                Console.WriteLine();
-                Console.WriteLine("Press any key for next scenario...");
-                Console.ReadKey(true);
             }
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("\n✓ All scenarios tested!");
-            Console.ResetColor();
+            return results;
         }
 
-        static void ChangeSettings()
+        /// <summary>
+        /// Test API connection.
+        /// </summary>
+        /// <param name="config">Test configuration with API key.</param>
+        /// <param name="error">Error message if connection fails.</param>
+        /// <returns>True if connection successful.</returns>
+        public static bool TestConnection(TestConfig config, out string error)
         {
-            Console.WriteLine();
-            Console.WriteLine("Current Settings:");
-            Console.WriteLine($"  Model: {_config.Model}");
-            Console.WriteLine($"  Temperature: {_config.Temperature}");
-            Console.WriteLine($"  Max Narration Tokens: {_config.MaxNarrationTokens}");
-            Console.WriteLine($"  Max Choice Tokens: {_config.MaxChoiceTokens}");
-            Console.WriteLine($"  Debug Mode: {_config.DebugMode}");
-            Console.WriteLine();
-
-            Console.WriteLine("Enter new model name (or press Enter to keep current):");
-            Console.Write("> ");
-            string model = Console.ReadLine()?.Trim();
-            if (!string.IsNullOrEmpty(model))
-            {
-                _config.Model = model;
-            }
-
-            Console.WriteLine("Enter new temperature 0.0-2.0 (or press Enter to keep current):");
-            Console.Write("> ");
-            string tempStr = Console.ReadLine()?.Trim();
-            if (!string.IsNullOrEmpty(tempStr) && float.TryParse(tempStr, out float temp))
-            {
-                _config.Temperature = Math.Max(0, Math.Min(2, temp));
-            }
-
-            Console.WriteLine("Toggle debug mode? (y/n, or press Enter to keep current):");
-            Console.Write("> ");
-            string debugStr = Console.ReadLine()?.Trim().ToLower();
-            if (debugStr == "y" || debugStr == "yes")
-            {
-                _config.DebugMode = !_config.DebugMode;
-            }
-
-            // Recreate client with new settings
-            _client = new TestOpenRouterClient(_config);
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"✓ Settings updated - Model: {_config.Model}, Temp: {_config.Temperature}, Debug: {_config.DebugMode}");
-            Console.ResetColor();
-        }
-
-        static string WrapText(string text, int width)
-        {
-            if (string.IsNullOrEmpty(text)) return text;
-
-            var lines = new List<string>();
-            var words = text.Split(' ');
-            var currentLine = "";
-
-            foreach (var word in words)
-            {
-                if (currentLine.Length + word.Length + 1 <= width)
-                {
-                    currentLine += (currentLine.Length > 0 ? " " : "") + word;
-                }
-                else
-                {
-                    if (currentLine.Length > 0)
-                    {
-                        lines.Add(currentLine);
-                    }
-                    currentLine = word;
-                }
-            }
-
-            if (currentLine.Length > 0)
-            {
-                lines.Add(currentLine);
-            }
-
-            return string.Join("\n", lines);
+            var client = new TestOpenRouterClient(config);
+            return client.TestConnection(out error);
         }
     }
-}
 
+    /// <summary>
+    /// Result of a scenario test run.
+    /// </summary>
+    public class ScenarioResult
+    {
+        public string TestName { get; set; }
+        public string ScenarioName { get; set; }
+        public int ColonyAgeDays { get; set; }
+        public string EventLabel { get; set; }
+
+        public bool NarrationSuccess { get; set; }
+        public string Narration { get; set; }
+        public string NarrationError { get; set; }
+
+        public bool ChoiceSuccess { get; set; }
+        public ChoiceEvent ChoiceEvent { get; set; }
+        public string ChoiceError { get; set; }
+
+        public bool FullSuccess => NarrationSuccess && ChoiceSuccess;
+    }
+}

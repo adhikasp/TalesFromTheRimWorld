@@ -5,6 +5,7 @@
     <TargetFramework>net472</TargetFramework>
     <RootNamespace>AINarrator.Test</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>

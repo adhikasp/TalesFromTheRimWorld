@@ -162,6 +162,11 @@ namespace AINarrator.Test
                 throw new Exception(_lastError);
             }
             
+            if (_lastNarration == null)
+            {
+                throw new Exception("Narration request completed but no narration was returned");
+            }
+            
             return _lastNarration;
         }
 

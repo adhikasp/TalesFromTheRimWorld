@@ -1,5 +1,6 @@
 using System.Linq;
 using Xunit;
+using AINarrator;
 
 namespace AINarrator.Test
 {
@@ -29,10 +30,13 @@ namespace AINarrator.Test
         public void GetChoiceSuggestions_IncludesPrisonerHookWhenPrisonersPresent()
         {
             var context = MockScenarios.GetMidGameScenario();
+            
+            // Verify the test assumption: mid-game scenario should have prisoners
+            Assert.True(context.Prisoners.Count > 0, "Test requires mid-game scenario to have prisoners");
 
             var suggestions = ContextFormatter.GetChoiceSuggestions(context);
 
-            Assert.Contains(suggestions, line => line.Contains("prisoner"));
+            Assert.Contains(suggestions, line => line.ToLower().Contains("prisoner"));
         }
 
         [Fact]
@@ -67,6 +71,7 @@ namespace AINarrator.Test
         }
     }
 }
+
 
 
 
