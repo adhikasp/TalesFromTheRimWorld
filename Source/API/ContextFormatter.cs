@@ -339,7 +339,25 @@ namespace AINarrator
             }
             
             // Story timeline: recent narrations and choices (newest first)
-#if !UNIT_TESTS
+            // Wrapped in try-catch because StoryContext requires RimWorld assemblies at runtime
+            try
+            {
+                AppendStoryTimeline(sb);
+            }
+            catch (Exception)
+            {
+                // StoryContext not available (running in test environment without RimWorld)
+            }
+            
+            return sb.ToString();
+        }
+        
+        /// <summary>
+        /// Append story timeline from StoryContext (requires RimWorld assemblies).
+        /// Separated into its own method to allow graceful failure in test environments.
+        /// </summary>
+        private static void AppendStoryTimeline(StringBuilder sb)
+        {
             var storyContext = StoryContext.Instance;
             if (storyContext?.JournalEntries != null && storyContext.JournalEntries.Any())
             {
@@ -368,9 +386,6 @@ namespace AINarrator
                     }
                 }
             }
-#endif
-            
-            return sb.ToString();
         }
         
         /// <summary>
