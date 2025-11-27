@@ -160,8 +160,8 @@ All context gets pruned to stay within the ~400-token budget outlined in the tec
 
 ## Roadmap
 
-1. **Phase 1 – Foundation (current work)**: Custom storyteller, narrative popups, simple choice events, Story Journal MVP.
-2. **Phase 2 – Deep Memory**: Track colonist arcs, faction grudges, relationship webs, and reference them in future events.
+1. **Phase 1 – Foundation (Done)**: Custom storyteller, narrative popups, simple choice events, Story Journal MVP.
+2. **Phase 2 – Deep Memory (Current work)**: Track colonist arcs, faction grudges, relationship webs, and reference them in future events.
 3. **Phase 3 – Branching Narratives**: Multi-stage arcs where choices create divergent outcomes and delayed consequences.
 4. **Phase 4 – Dynamic World Events**: AI-generated incidents beyond vanilla definitions plus political intrigue and mysteries.
 5. **Phase 5 – Personality & Themes**: Selectable narrator personas, thematic sliders, and content preferences for replayability.
