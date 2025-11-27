@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!-- Shell-shocked: Negative mental state after trauma -->
+  <HediffDef>
+    <defName>Hediff_Shellshocked</defName>
+    <label>shell-shocked</label>
+    <description>The horrors of recent events weigh heavily on their mind.</description>
+    <hediffClass>HediffWithComps</hediffClass>
+    <defaultLabelColor>(0.6, 0.6, 0.8)</defaultLabelColor>
+    <stages>
+      <li>
+        <capMods>
+          <li><capacity>Consciousness</capacity><offset>-0.05</offset></li>
+        </capMods>
+        <statOffsets>
+          <MentalBreakThreshold>0.05</MentalBreakThreshold>
+        </statOffsets>
+      </li>
+    </stages>
+    <comps>
+      <li Class="HediffCompProperties_Disappears">
+        <disappearsAfterTicks>900000~1800000</disappearsAfterTicks>
+        <!-- 15-30 days -->
+      </li>
+    </comps>
+  </HediffDef>
+  
+  <!-- Hardened: Increased pain tolerance after trauma -->
+  <HediffDef>
+    <defName>Hediff_Hardened</defName>
+    <label>hardened</label>
+    <description>They've seen too much to be easily shaken.</description>
+    <hediffClass>HediffWithComps</hediffClass>
+    <defaultLabelColor>(0.7, 0.5, 0.3)</defaultLabelColor>
+    <stages>
+      <li>
+        <statOffsets>
+          <PainShockThreshold>0.1</PainShockThreshold>
+        </statOffsets>
+      </li>
+    </stages>
+    <comps>
+      <li Class="HediffCompProperties_Disappears">
+        <disappearsAfterTicks>900000~1800000</disappearsAfterTicks>
+        <!-- 15-30 days -->
+      </li>
+    </comps>
+  </HediffDef>
+  
+  <!-- Determined: Increased work speed after trauma -->
+  <HediffDef>
+    <defName>Hediff_Determined</defName>
+    <label>determined</label>
+    <description>They've found new resolve in the face of adversity.</description>
+    <hediffClass>HediffWithComps</hediffClass>
+    <defaultLabelColor>(0.3, 0.7, 0.5)</defaultLabelColor>
+    <stages>
+      <li>
+        <statOffsets>
+          <WorkSpeedGlobal>0.1</WorkSpeedGlobal>
+        </statOffsets>
+      </li>
+    </stages>
+    <comps>
+      <li Class="HediffCompProperties_Disappears">
+        <disappearsAfterTicks>900000~1800000</disappearsAfterTicks>
+        <!-- 15-30 days -->
+      </li>
+    </comps>
+  </HediffDef>
+</Defs>
+

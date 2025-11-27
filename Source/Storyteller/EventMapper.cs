@@ -319,10 +319,11 @@ namespace AINarrator
         private static void ChangeFactionRelation(Dictionary<string, object> parameters, Map map)
         {
             int change = GetParam<int>(parameters, "change", 0);
+            string factionIdentifier = GetParam<string>(parameters, "faction", string.Empty);
             
             if (change == 0) return;
             
-            // Find a random non-player faction
+            // Gather all humanlike, non-player factions
             var factions = Find.FactionManager.AllFactionsVisible
                 .Where(f => !f.IsPlayer && f.def.humanlikeFaction)
                 .ToList();
@@ -333,7 +334,21 @@ namespace AINarrator
                 return;
             }
             
-            Faction faction = factions.RandomElement();
+            Faction faction = null;
+            if (!string.IsNullOrWhiteSpace(factionIdentifier))
+            {
+                faction = factions.FirstOrDefault(f =>
+                    string.Equals(f.Name, factionIdentifier, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(f.def?.defName, factionIdentifier, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(f.def?.label, factionIdentifier, StringComparison.OrdinalIgnoreCase));
+                
+                if (faction == null)
+                {
+                    Log.Warning($"[AI Narrator] Could not find faction '{factionIdentifier}', falling back to random.");
+                }
+            }
+            
+            faction ??= factions.RandomElement();
             faction.TryAffectGoodwillWith(Faction.OfPlayer, change, canSendMessage: true, canSendHostilityLetter: true);
             
             Log.Message($"[AI Narrator] Changed {faction.Name} relations by {change}");
@@ -831,6 +846,7 @@ namespace AINarrator
         /// <summary>
         /// Trigger any RimWorld incident by its defName.
         /// Allows triggering prebaked events like ship chunks, meteorites, quests, etc.
+        /// Supports detailed parameters for specific incident customization.
         /// </summary>
         private static void TriggerIncident(Dictionary<string, object> parameters, Map map)
         {
@@ -840,6 +856,13 @@ namespace AINarrator
             {
                 Log.Warning("[AI Narrator] trigger_incident requires 'incident' parameter");
                 return;
+            }
+            
+            // Check if this is a specialized incident that needs custom handling
+            string incidentLower = incidentName.ToLower();
+            if (TryHandleSpecializedIncident(incidentLower, parameters, map))
+            {
+                return;  // Handled by specialized method
             }
             
             // Look up incident by defName
@@ -857,18 +880,17 @@ namespace AINarrator
             }
             
             // Create incident parameters
-            IncidentParms parms = new IncidentParms
-            {
-                target = map,
-                forced = true  // Force execution even if conditions aren't perfect
-            };
+            IncidentParms parms = StorytellerUtility.DefaultParmsNow(incidentDef.category, map);
+            parms.forced = true;  // Force execution even if conditions aren't perfect
             
             // Set faction if specified
             string factionName = GetParam<string>(parameters, "faction", "");
             if (!string.IsNullOrEmpty(factionName))
             {
                 parms.faction = Find.FactionManager.AllFactionsVisible
-                    .FirstOrDefault(f => f.def.defName == factionName || f.Name.ToString() == factionName);
+                    .FirstOrDefault(f => 
+                        string.Equals(f.def.defName, factionName, StringComparison.OrdinalIgnoreCase) || 
+                        string.Equals(f.Name.ToString(), factionName, StringComparison.OrdinalIgnoreCase));
             }
             
             // Set threat points if specified (for raid-like incidents)
@@ -877,11 +899,18 @@ namespace AINarrator
                 parms.points = GetParam<float>(parameters, "points", StorytellerUtility.DefaultThreatPointsNow(map));
             }
             
-            // Set other common parameters
-            if (parameters.ContainsKey("spawnCenter"))
+            // Set raid arrival mode if specified
+            string arrival = GetParam<string>(parameters, "arrival", "");
+            if (!string.IsNullOrEmpty(arrival))
             {
-                // Can specify spawn location if needed by incident type
-                // Most incidents handle this automatically
+                parms.raidArrivalMode = GetArrivalMode(arrival);
+            }
+            
+            // Set raid strategy if specified
+            string strategy = GetParam<string>(parameters, "strategy", "");
+            if (!string.IsNullOrEmpty(strategy))
+            {
+                parms.raidStrategy = GetRaidStrategy(strategy);
             }
             
             // Execute the incident
@@ -911,44 +940,687 @@ namespace AINarrator
         }
         
         /// <summary>
+        /// Handle specialized incidents that need custom parameter processing.
+        /// Returns true if handled, false to fall through to standard handling.
+        /// </summary>
+        private static bool TryHandleSpecializedIncident(string incidentType, Dictionary<string, object> parameters, Map map)
+        {
+            switch (incidentType)
+            {
+                case "manhunter":
+                case "manhunter_pack":
+                    return TriggerManhunterPack(parameters, map);
+                    
+                case "meteorite":
+                case "meteor":
+                    return TriggerMeteorite(parameters, map);
+                    
+                case "disease":
+                case "random_disease":
+                    return TriggerDisease(parameters, map);
+                    
+                case "resource_pod":
+                case "cargo_pod":
+                case "crashedpod":
+                    return TriggerResourcePod(parameters, map);
+                    
+                case "psychic_drone":
+                    return TriggerPsychicEvent(parameters, map, false);
+                    
+                case "psychic_soothe":
+                    return TriggerPsychicEvent(parameters, map, true);
+                    
+                case "item_stash":
+                    return TriggerItemStash(parameters, map);
+                    
+                case "self_tame":
+                    return TriggerSelfTame(parameters, map);
+                    
+                case "animal_herd":
+                    return TriggerAnimalHerd(parameters, map);
+                    
+                default:
+                    return false;  // Not a specialized incident
+            }
+        }
+        
+        /// <summary>
+        /// Trigger a manhunter pack with specific animal type.
+        /// </summary>
+        private static bool TriggerManhunterPack(Dictionary<string, object> parameters, Map map)
+        {
+            string animalType = GetParam<string>(parameters, "animal", "random");
+            int count = GetParam<int>(parameters, "count", 0);  // 0 = let game decide
+            
+            PawnKindDef animalKind = null;
+            if (animalType.ToLower() != "random")
+            {
+                animalKind = GetAnimalKind(animalType, map);
+            }
+            
+            // If no specific animal, pick a random manhunter-capable animal
+            if (animalKind == null)
+            {
+                animalKind = DefDatabase<PawnKindDef>.AllDefs
+                    .Where(k => k.RaceProps?.Animal == true && 
+                               k.combatPower > 30 &&  // Reasonable threat
+                               map.Biome.CommonalityOfAnimal(k) > 0)
+                    .RandomElementWithFallback();
+            }
+            
+            if (animalKind == null)
+            {
+                Log.Warning("[AI Narrator] Could not find suitable manhunter animal");
+                return false;
+            }
+            
+            // Calculate count based on combat power if not specified
+            if (count <= 0)
+            {
+                float points = StorytellerUtility.DefaultThreatPointsNow(map) * 0.5f;
+                count = Math.Max(1, (int)(points / animalKind.combatPower));
+            }
+            count = Math.Max(1, Math.Min(count, 20));
+            
+            // Find spawn location
+            IntVec3 spawnLoc;
+            if (!CellFinder.TryFindRandomEdgeCellWith(
+                c => c.Walkable(map) && !c.Fogged(map),
+                map,
+                CellFinder.EdgeRoadChance_Neutral,
+                out spawnLoc))
+            {
+                spawnLoc = CellFinder.RandomEdgeCell(map);
+            }
+            
+            // Spawn manhunter animals
+            for (int i = 0; i < count; i++)
+            {
+                Pawn animal = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
+                    animalKind,
+                    null,
+                    PawnGenerationContext.NonPlayer,
+                    map.Tile
+                ));
+                
+                IntVec3 loc = CellFinder.RandomClosewalkCellNear(spawnLoc, map, 10);
+                GenSpawn.Spawn(animal, loc, map);
+                animal.mindState.mentalStateHandler.TryStartMentalState(MentalStateDefOf.Manhunter);
+            }
+            
+            Find.LetterStack.ReceiveLetter(
+                "Manhunter Pack!",
+                $"A pack of {count} manhunting {animalKind.label}s have entered the area!",
+                LetterDefOf.ThreatBig,
+                new TargetInfo(spawnLoc, map)
+            );
+            
+            Log.Message($"[AI Narrator] Triggered manhunter pack: {count}x {animalKind.label}");
+            return true;
+        }
+        
+        /// <summary>
+        /// Trigger a meteorite with specific resource type.
+        /// </summary>
+        private static bool TriggerMeteorite(Dictionary<string, object> parameters, Map map)
+        {
+            string resourceType = GetParam<string>(parameters, "resource", "random");
+            
+            ThingDef mineralDef = GetMeteoriteMineral(resourceType);
+            if (mineralDef == null)
+            {
+                // Fall back to standard meteorite incident
+                return false;
+            }
+            
+            // Find impact location (prefer open areas)
+            IntVec3 impactLoc = IntVec3.Invalid;
+            for (int i = 0; i < 20; i++)
+            {
+                IntVec3 testLoc = CellFinder.RandomCell(map);
+                if (testLoc.Standable(map) && !testLoc.Roofed(map) && testLoc.GetEdifice(map) == null)
+                {
+                    impactLoc = testLoc;
+                    break;
+                }
+            }
+            
+            if (!impactLoc.IsValid)
+            {
+                impactLoc = CellFinder.RandomCell(map);
+            }
+            
+            // Spawn the meteorite (building version, not mineable)
+            ThingDef meteoriteDef = DefDatabase<ThingDef>.GetNamedSilentFail("فلكةMeteorite" + mineralDef.defName);
+            if (meteoriteDef == null)
+            {
+                // Create mineral chunk directly
+                int stackCount = Rand.Range(40, 80);
+                Thing mineral = ThingMaker.MakeThing(mineralDef);
+                mineral.stackCount = Math.Min(stackCount, mineral.def.stackLimit);
+                GenPlace.TryPlaceThing(mineral, impactLoc, map, ThingPlaceMode.Near);
+                
+                // Visual/sound effects (simplified - just the explosion visual)
+                GenExplosion.DoExplosion(impactLoc, map, 3f, DamageDefOf.Bomb, null);
+            }
+            
+            Find.LetterStack.ReceiveLetter(
+                "Meteorite!",
+                $"A meteorite rich in {mineralDef.label} has crashed nearby!",
+                LetterDefOf.PositiveEvent,
+                new TargetInfo(impactLoc, map)
+            );
+            
+            Log.Message($"[AI Narrator] Triggered meteorite: {mineralDef.label}");
+            return true;
+        }
+        
+        private static ThingDef GetMeteoriteMineral(string resourceType)
+        {
+            return resourceType?.ToLower() switch
+            {
+                "steel" => ThingDefOf.Steel,
+                "silver" => ThingDefOf.Silver,
+                "gold" => ThingDefOf.Gold,
+                "plasteel" => ThingDefOf.Plasteel,
+                "uranium" => ThingDefOf.Uranium,
+                "jade" => ThingDefOf.Jade,
+                "marble" => DefDatabase<ThingDef>.GetNamedSilentFail("BlocksMarble"),
+                "granite" => DefDatabase<ThingDef>.GetNamedSilentFail("BlocksGranite"),
+                "slate" => DefDatabase<ThingDef>.GetNamedSilentFail("BlocksSlate"),
+                "sandstone" => DefDatabase<ThingDef>.GetNamedSilentFail("BlocksSandstone"),
+                "limestone" => DefDatabase<ThingDef>.GetNamedSilentFail("BlocksLimestone"),
+                "random" => new ThingDef[] { ThingDefOf.Steel, ThingDefOf.Silver, ThingDefOf.Gold, 
+                    ThingDefOf.Plasteel, ThingDefOf.Uranium, ThingDefOf.Jade }.RandomElement(),
+                _ => DefDatabase<ThingDef>.GetNamedSilentFail(resourceType)
+            };
+        }
+        
+        /// <summary>
+        /// Trigger a disease outbreak with specific disease type.
+        /// </summary>
+        private static bool TriggerDisease(Dictionary<string, object> parameters, Map map)
+        {
+            string diseaseType = GetParam<string>(parameters, "disease", "random");
+            string targetName = GetParam<string>(parameters, "target", "");
+            
+            // Get the disease incident def
+            IncidentDef diseaseDef = GetDiseaseIncident(diseaseType);
+            if (diseaseDef == null)
+            {
+                Log.Warning($"[AI Narrator] Unknown disease: {diseaseType}");
+                return false;
+            }
+            
+            // Find target if specified
+            Pawn targetPawn = null;
+            if (!string.IsNullOrEmpty(targetName))
+            {
+                targetPawn = map.mapPawns.FreeColonists
+                    .FirstOrDefault(p => string.Equals(p.Name.ToStringShort, targetName, StringComparison.OrdinalIgnoreCase));
+            }
+            
+            // Create parameters
+            IncidentParms parms = StorytellerUtility.DefaultParmsNow(diseaseDef.category, map);
+            parms.forced = true;
+            
+            if (diseaseDef.Worker.TryExecute(parms))
+            {
+                Log.Message($"[AI Narrator] Triggered disease: {diseaseDef.defName}");
+                return true;
+            }
+            
+            return false;
+        }
+        
+        private static IncidentDef GetDiseaseIncident(string diseaseType)
+        {
+            string defName = diseaseType?.ToLower() switch
+            {
+                "plague" => "Disease_Plague",
+                "flu" or "influenza" => "Disease_Flu",
+                "malaria" => "Disease_Malaria",
+                "sleeping_sickness" or "sleepingsickness" => "Disease_SleepingSickness",
+                "gut_worms" or "gutworms" => "Disease_GutWorms",
+                "muscle_parasites" or "muscleparasites" => "Disease_MuscleParasites",
+                "fibrous_mechanites" or "fibrousmechanites" => "Disease_FibrousMechanites",
+                "sensory_mechanites" or "sensorymechanites" => "Disease_SensoryMechanites",
+                "random" => null,  // Will pick random below
+                _ => diseaseType  // Try as defName directly
+            };
+            
+            if (defName == null)
+            {
+                // Pick random disease
+                return DefDatabase<IncidentDef>.AllDefs
+                    .Where(d => d.defName.StartsWith("Disease_"))
+                    .RandomElementWithFallback();
+            }
+            
+            return DefDatabase<IncidentDef>.GetNamedSilentFail(defName);
+        }
+        
+        /// <summary>
+        /// Trigger a resource pod with specific contents.
+        /// </summary>
+        private static bool TriggerResourcePod(Dictionary<string, object> parameters, Map map)
+        {
+            string resourceType = GetParam<string>(parameters, "resource", "random");
+            int count = GetParam<int>(parameters, "count", 0);
+            
+            // Get resource def
+            ThingDef resourceDef = GetResourcePodContents(resourceType);
+            if (resourceDef == null)
+            {
+                // Fall back to standard resource pod
+                return false;
+            }
+            
+            // Calculate count if not specified
+            if (count <= 0)
+            {
+                count = resourceType.ToLower() switch
+                {
+                    "gold" or "plasteel" or "uranium" => Rand.Range(20, 50),
+                    "component" or "medicine" => Rand.Range(10, 25),
+                    "silver" => Rand.Range(100, 300),
+                    _ => Rand.Range(50, 150)
+                };
+            }
+            
+            // Find drop location
+            IntVec3 dropLoc = DropCellFinder.RandomDropSpot(map);
+            
+            // Create the item
+            Thing resource = ThingMaker.MakeThing(resourceDef);
+            resource.stackCount = Math.Min(count, resource.def.stackLimit > 0 ? resource.def.stackLimit : count);
+            
+            // Spawn items with skyfaller effect using SkyfallerMaker
+            ThingDef dropPodIncoming = ThingDefOf.DropPodIncoming;
+            Thing skyfaller = SkyfallerMaker.SpawnSkyfaller(dropPodIncoming, resource, dropLoc, map);
+            
+            Find.LetterStack.ReceiveLetter(
+                "Cargo Pod",
+                $"A cargo pod containing {resource.stackCount} {resource.Label} is incoming!",
+                LetterDefOf.PositiveEvent,
+                new TargetInfo(dropLoc, map)
+            );
+            
+            Log.Message($"[AI Narrator] Triggered resource pod: {resource.stackCount}x {resource.Label}");
+            return true;
+        }
+        
+        private static ThingDef GetResourcePodContents(string resourceType)
+        {
+            return resourceType?.ToLower() switch
+            {
+                "silver" => ThingDefOf.Silver,
+                "gold" => ThingDefOf.Gold,
+                "steel" => ThingDefOf.Steel,
+                "plasteel" => ThingDefOf.Plasteel,
+                "medicine" => ThingDefOf.MedicineIndustrial,
+                "component" or "components" => ThingDefOf.ComponentIndustrial,
+                "food" or "meals" => ThingDefOf.MealSurvivalPack,
+                "chemfuel" => ThingDefOf.Chemfuel,
+                "neutroamine" => DefDatabase<ThingDef>.GetNamedSilentFail("Neutroamine"),
+                "uranium" => ThingDefOf.Uranium,
+                "random" => new ThingDef[] { ThingDefOf.Silver, ThingDefOf.Gold, ThingDefOf.Steel, 
+                    ThingDefOf.Plasteel, ThingDefOf.MedicineIndustrial, ThingDefOf.ComponentIndustrial }.RandomElement(),
+                _ => DefDatabase<ThingDef>.GetNamedSilentFail(resourceType)
+            };
+        }
+        
+        /// <summary>
+        /// Trigger psychic drone or soothe with specific gender.
+        /// </summary>
+        private static bool TriggerPsychicEvent(Dictionary<string, object> parameters, Map map, bool isSoothe)
+        {
+            string genderStr = GetParam<string>(parameters, "gender", "random");
+            
+            Gender gender = genderStr?.ToLower() switch
+            {
+                "male" => Gender.Male,
+                "female" => Gender.Female,
+                _ => Rand.Bool ? Gender.Male : Gender.Female
+            };
+            
+            string incidentName = isSoothe 
+                ? (gender == Gender.Male ? "PsychicSootheMale" : "PsychicSootheFemale")
+                : (gender == Gender.Male ? "PsychicDroneMale" : "PsychicDroneFemale");
+            
+            IncidentDef incidentDef = DefDatabase<IncidentDef>.GetNamedSilentFail(incidentName);
+            if (incidentDef == null)
+            {
+                // Try generic versions
+                incidentDef = DefDatabase<IncidentDef>.GetNamedSilentFail(isSoothe ? "PsychicSoothe" : "PsychicDrone");
+            }
+            
+            if (incidentDef == null)
+            {
+                Log.Warning($"[AI Narrator] Could not find psychic incident: {incidentName}");
+                return false;
+            }
+            
+            IncidentParms parms = StorytellerUtility.DefaultParmsNow(incidentDef.category, map);
+            parms.forced = true;
+            
+            if (incidentDef.Worker.TryExecute(parms))
+            {
+                Log.Message($"[AI Narrator] Triggered {incidentName}");
+                return true;
+            }
+            
+            return false;
+        }
+        
+        /// <summary>
+        /// Trigger item stash quest with specific item type.
+        /// </summary>
+        private static bool TriggerItemStash(Dictionary<string, object> parameters, Map map)
+        {
+            string itemType = GetParam<string>(parameters, "item", "random");
+            
+            // Item stash is quest-based, we'll try to trigger the quest
+            IncidentDef questDef = DefDatabase<IncidentDef>.GetNamedSilentFail("Quest_ItemStash");
+            if (questDef == null)
+            {
+                questDef = DefDatabase<IncidentDef>.AllDefs
+                    .FirstOrDefault(d => d.defName.Contains("ItemStash") || d.defName.Contains("Stash"));
+            }
+            
+            if (questDef != null)
+            {
+                IncidentParms parms = StorytellerUtility.DefaultParmsNow(questDef.category, map);
+                parms.forced = true;
+                
+                if (questDef.Worker.TryExecute(parms))
+                {
+                    Log.Message($"[AI Narrator] Triggered item stash quest");
+                    return true;
+                }
+            }
+            
+            // Fallback: just spawn the items directly
+            ThingDef itemDef = itemType?.ToLower() switch
+            {
+                "weapon" => DefDatabase<ThingDef>.AllDefs
+                    .Where(d => d.IsWeapon && d.techLevel >= TechLevel.Industrial)
+                    .RandomElementWithFallback(),
+                "armor" => DefDatabase<ThingDef>.AllDefs
+                    .Where(d => d.IsApparel && d.statBases?.Any(s => s.stat == StatDefOf.ArmorRating_Sharp) == true)
+                    .RandomElementWithFallback(),
+                "artifact" => DefDatabase<ThingDef>.GetNamedSilentFail("PsychicInsanityLance") ?? 
+                              DefDatabase<ThingDef>.GetNamedSilentFail("OrbitalTargeterBombardment"),
+                "medicine" => ThingDefOf.MedicineUltratech,
+                "drugs" => DefDatabase<ThingDef>.GetNamedSilentFail("Luciferium") ?? 
+                          DefDatabase<ThingDef>.GetNamedSilentFail("GoJuice"),
+                _ => ThingDefOf.Silver
+            };
+            
+            if (itemDef != null)
+            {
+                Thing item = ThingMaker.MakeThing(itemDef);
+                IntVec3 loc = DropCellFinder.RandomDropSpot(map);
+                GenPlace.TryPlaceThing(item, loc, map, ThingPlaceMode.Near);
+                
+                Find.LetterStack.ReceiveLetter(
+                    "Hidden Stash Found",
+                    $"Your scouts have discovered a hidden cache containing {item.Label}!",
+                    LetterDefOf.PositiveEvent,
+                    new TargetInfo(loc, map)
+                );
+                
+                Log.Message($"[AI Narrator] Spawned stash item: {item.Label}");
+            }
+            
+            return true;
+        }
+        
+        /// <summary>
+        /// Trigger an animal self-taming to the colony.
+        /// </summary>
+        private static bool TriggerSelfTame(Dictionary<string, object> parameters, Map map)
+        {
+            string animalType = GetParam<string>(parameters, "animal", "random");
+            
+            PawnKindDef animalKind = null;
+            if (animalType.ToLower() != "random")
+            {
+                animalKind = GetAnimalKind(animalType, map);
+            }
+            
+            if (animalKind == null)
+            {
+                // Pick a random tameable animal appropriate for the biome
+                animalKind = DefDatabase<PawnKindDef>.AllDefs
+                    .Where(k => k.RaceProps?.Animal == true && 
+                               k.RaceProps.trainability != null &&  // Can be tamed
+                               map.Biome.CommonalityOfAnimal(k) > 0)
+                    .RandomElementWithFallback();
+            }
+            
+            if (animalKind == null)
+            {
+                Log.Warning("[AI Narrator] Could not find suitable animal for self-tame");
+                return false;
+            }
+            
+            // Find spawn location
+            IntVec3 spawnLoc;
+            if (!CellFinder.TryFindRandomEdgeCellWith(
+                c => c.Walkable(map) && !c.Fogged(map),
+                map,
+                CellFinder.EdgeRoadChance_Neutral,
+                out spawnLoc))
+            {
+                spawnLoc = CellFinder.RandomEdgeCell(map);
+            }
+            
+            Pawn animal = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
+                animalKind,
+                Faction.OfPlayer,  // Directly join player faction
+                PawnGenerationContext.NonPlayer,
+                map.Tile
+            ));
+            
+            GenSpawn.Spawn(animal, spawnLoc, map);
+            
+            // Set training if possible
+            if (animal.training != null)
+            {
+                foreach (TrainableDef trainable in DefDatabase<TrainableDef>.AllDefs)
+                {
+                    if (animal.training.CanBeTrained(trainable))
+                    {
+                        animal.training.Train(trainable, null, complete: true);
+                    }
+                }
+            }
+            
+            Find.LetterStack.ReceiveLetter(
+                "Animal Self-Tamed",
+                $"A wild {animalKind.label} has wandered into the colony and bonded with your colonists!",
+                LetterDefOf.PositiveEvent,
+                new TargetInfo(animal)
+            );
+            
+            Log.Message($"[AI Narrator] Triggered self-tame: {animalKind.label}");
+            return true;
+        }
+        
+        /// <summary>
+        /// Trigger an animal herd passing through.
+        /// </summary>
+        private static bool TriggerAnimalHerd(Dictionary<string, object> parameters, Map map)
+        {
+            string animalType = GetParam<string>(parameters, "animal", "random");
+            int count = GetParam<int>(parameters, "count", 0);
+            
+            PawnKindDef animalKind = null;
+            if (animalType.ToLower() != "random")
+            {
+                animalKind = GetAnimalKind(animalType, map);
+            }
+            
+            if (animalKind == null)
+            {
+                // Pick a herd animal
+                animalKind = new string[] { "Muffalo", "Deer", "Elk", "Caribou", "Alpaca", "Ibex" }
+                    .Select(name => DefDatabase<PawnKindDef>.GetNamedSilentFail(name))
+                    .Where(k => k != null)
+                    .RandomElementWithFallback();
+            }
+            
+            if (animalKind == null)
+            {
+                Log.Warning("[AI Narrator] Could not find suitable herd animal");
+                return false;
+            }
+            
+            if (count <= 0)
+            {
+                count = Rand.Range(5, 12);
+            }
+            count = Math.Max(3, Math.Min(count, 20));
+            
+            // Find spawn location at edge
+            IntVec3 spawnLoc;
+            if (!CellFinder.TryFindRandomEdgeCellWith(
+                c => c.Walkable(map) && !c.Fogged(map),
+                map,
+                CellFinder.EdgeRoadChance_Neutral,
+                out spawnLoc))
+            {
+                spawnLoc = CellFinder.RandomEdgeCell(map);
+            }
+            
+            // Spawn herd
+            for (int i = 0; i < count; i++)
+            {
+                Pawn animal = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
+                    animalKind,
+                    null,
+                    PawnGenerationContext.NonPlayer,
+                    map.Tile
+                ));
+                
+                IntVec3 loc = CellFinder.RandomClosewalkCellNear(spawnLoc, map, 10);
+                GenSpawn.Spawn(animal, loc, map);
+            }
+            
+            Find.LetterStack.ReceiveLetter(
+                "Herd Migration",
+                $"A herd of {count} {animalKind.label}s is passing through the area.",
+                LetterDefOf.NeutralEvent,
+                new TargetInfo(spawnLoc, map)
+            );
+            
+            Log.Message($"[AI Narrator] Triggered animal herd: {count}x {animalKind.label}");
+            return true;
+        }
+        
+        /// <summary>
+        /// Get raid arrival mode from string.
+        /// </summary>
+        private static PawnsArrivalModeDef GetArrivalMode(string arrival)
+        {
+            return arrival?.ToLower() switch
+            {
+                "edge" or "walk" => PawnsArrivalModeDefOf.EdgeWalkIn,
+                "drop" or "droppod" or "droppods" => PawnsArrivalModeDefOf.EdgeDrop,
+                "center" or "centerdrop" => PawnsArrivalModeDefOf.CenterDrop,
+                "tunnel" or "sappers" => DefDatabase<PawnsArrivalModeDef>.GetNamedSilentFail("EdgeWalkInGroups"),
+                "breach" => DefDatabase<PawnsArrivalModeDef>.GetNamedSilentFail("EdgeWalkInGroups"),
+                _ => PawnsArrivalModeDefOf.EdgeWalkIn
+            };
+        }
+        
+        /// <summary>
+        /// Get raid strategy from string.
+        /// </summary>
+        private static RaidStrategyDef GetRaidStrategy(string strategy)
+        {
+            return strategy?.ToLower() switch
+            {
+                "attack" or "immediate" => RaidStrategyDefOf.ImmediateAttack,
+                "siege" => DefDatabase<RaidStrategyDef>.GetNamedSilentFail("Siege"),
+                "kidnap" or "steal" => DefDatabase<RaidStrategyDef>.GetNamedSilentFail("ImmediateAttackSmart"),
+                "sapper" or "sappers" => DefDatabase<RaidStrategyDef>.GetNamedSilentFail("ImmediateAttackSappers"),
+                _ => RaidStrategyDefOf.ImmediateAttack
+            };
+        }
+        
+        /// <summary>
         /// Maps common incident names/aliases to IncidentDefs for easier LLM usage.
+        /// Comprehensive mapping for all common RimWorld incidents.
         /// </summary>
         private static IncidentDef GetIncidentByAlias(string alias)
         {
             return alias?.ToLower() switch
             {
-                // Threats
+                // === THREATS ===
                 "raid" or "enemy_raid" => IncidentDefOf.RaidEnemy,
-                "manhunter_pack" or "manhunter" => DefDatabase<IncidentDef>.GetNamedSilentFail("AnimalInsanityMass") ?? IncidentDefOf.RaidEnemy,
                 "infestation" => IncidentDefOf.Infestation,
+                "mech_cluster" or "mechcluster" or "mechanoid_cluster" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("MechCluster"),
+                "ship_part_crash" or "psychic_ship" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("PsychicEmanatorShipPartCrash") ??
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("DefoliatorShipPartCrash"),
                 
-                // Weather
-                "meteorite" or "meteor" => DefDatabase<IncidentDef>.GetNamedSilentFail("MeteoriteImpact"),
+                // === WEATHER/ENVIRONMENT ===
+                "flashstorm" or "flash_storm" => DefDatabase<IncidentDef>.GetNamedSilentFail("Flashstorm"),
                 "tornado" => DefDatabase<IncidentDef>.GetNamedSilentFail("Tornado"),
-                "flashstorm" => DefDatabase<IncidentDef>.GetNamedSilentFail("Flashstorm"),
-                "volcanic_winter" => DefDatabase<IncidentDef>.GetNamedSilentFail("VolcanicWinter"),
+                "volcanic_winter" or "volcanicwinter" => DefDatabase<IncidentDef>.GetNamedSilentFail("VolcanicWinter"),
+                "toxic_fallout" or "toxicfallout" => DefDatabase<IncidentDef>.GetNamedSilentFail("ToxicFallout"),
+                "cold_snap" or "coldsnap" => DefDatabase<IncidentDef>.GetNamedSilentFail("ColdSnap"),
+                "heat_wave" or "heatwave" => DefDatabase<IncidentDef>.GetNamedSilentFail("HeatWave"),
+                "eclipse" or "solar_eclipse" => DefDatabase<IncidentDef>.GetNamedSilentFail("Eclipse"),
+                "aurora" or "aurora_borealis" => DefDatabase<IncidentDef>.GetNamedSilentFail("Aurora"),
+                "solar_flare" or "solarflare" => DefDatabase<IncidentDef>.GetNamedSilentFail("SolarFlare"),
                 
-                // Resources
-                "ship_chunk" or "shipchunk" => IncidentDefOf.ShipChunkDrop,
-                "resource_pod" or "crashedpod" => DefDatabase<IncidentDef>.GetNamedSilentFail("ResourcePodCrash"),
+                // === RESOURCES ===
+                "ship_chunk" or "shipchunk" or "ship_chunk_drop" => IncidentDefOf.ShipChunkDrop,
+                "ambrosia_sprout" or "ambrosia" => DefDatabase<IncidentDef>.GetNamedSilentFail("AmbrosiaSprout"),
                 
-                // Visitors
+                // === ANIMALS ===
+                "farm_animals_wander_in" or "farm_animals" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("FarmAnimalsWanderIn"),
+                "thrumbo_pass" or "thrumbos" => DefDatabase<IncidentDef>.GetNamedSilentFail("ThrumboPasses"),
+                "alphabeavers" or "alpha_beavers" => DefDatabase<IncidentDef>.GetNamedSilentFail("Alphabeavers"),
+                
+                // === VISITORS ===
                 "visitor_group" or "visitors" => IncidentDefOf.VisitorGroup,
                 "trader_caravan" or "trader" => IncidentDefOf.TraderCaravanArrival,
+                "orbital_trader" or "orbital_trader_arrival" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("OrbitalTraderArrival"),
                 
-                // Opportunities
-                "wanderer_joins" or "wanderer" => IncidentDefOf.WandererJoin,
+                // === JOINERS ===
+                "wanderer_joins" or "wanderer" or "wanderer_join" => IncidentDefOf.WandererJoin,
                 "refugee_chased" or "refugee" => DefDatabase<IncidentDef>.GetNamedSilentFail("RefugeeChased"),
-                "traveler_wounded" => DefDatabase<IncidentDef>.GetNamedSilentFail("TravelerWounded"),
+                "refugee_pod" or "escape_pod" => DefDatabase<IncidentDef>.GetNamedSilentFail("RefugeePodCrash"),
+                "traveler_wounded" or "wounded_traveler" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("TravelerWounded"),
+                "prisoner_rescue" or "prisoner_wildman" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("PrisonerWildsCapture"),
                 
-                // Quests
+                // === QUESTS/OPPORTUNITIES ===
+                "peace_talks" or "peacetalks" => DefDatabase<IncidentDef>.GetNamedSilentFail("Quest_PeaceTalks"),
+                "trade_request" or "traderequest" => DefDatabase<IncidentDef>.GetNamedSilentFail("Quest_TradeRequest"),
+                "bandit_camp" or "banditcamp" => DefDatabase<IncidentDef>.GetNamedSilentFail("Quest_BanditCamp"),
+                "ancient_danger_revealed" or "ancient_danger" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("Quest_AncientDangerRevealed"),
+                "caravan_request" or "caravanrequest" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("CaravanRequest"),
                 "quest" or "random_quest" => DefDatabase<IncidentDef>.AllDefs
-                    .Where(d => d.category?.defName == "Quest" || d.tags?.Contains("Quest") == true)
+                    .Where(d => d.defName.StartsWith("Quest_"))
                     .RandomElementWithFallback(),
                 
-                // Diseases
-                "disease" or "random_disease" => DefDatabase<IncidentDef>.AllDefs
-                    .Where(d => d.category?.defName == "DiseaseHuman" || d.category?.defName == "DiseaseAnimal")
+                // === MISC ===
+                "crop_blight" or "blight" => DefDatabase<IncidentDef>.GetNamedSilentFail("CropBlight"),
+                "short_circuit" or "shortcircuit" or "zzzt" => 
+                    DefDatabase<IncidentDef>.GetNamedSilentFail("ShortCircuit"),
+                "animal_disease" or "animal_plague" => DefDatabase<IncidentDef>.AllDefs
+                    .Where(d => d.defName.Contains("Disease") && d.defName.Contains("Animal"))
                     .RandomElementWithFallback(),
                 
                 _ => null

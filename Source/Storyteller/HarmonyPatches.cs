@@ -164,6 +164,31 @@ namespace AINarrator
                 
                 // Record the death
                 StoryContext.Instance?.RecordColonistDeath(__instance, dinfo);
+                
+                // Phase 2: Record as historical event
+                if (StoryContext.Instance != null)
+                {
+                    var keywords = new List<string> { __instance.Name?.ToStringShort ?? "Unknown", "Death" };
+                    if (dinfo.HasValue && dinfo.Value.Instigator != null)
+                    {
+                        keywords.Add(dinfo.Value.Instigator.Faction?.Name ?? "");
+                        keywords.Add(dinfo.Value.Instigator.LabelShort);
+                    }
+                    
+                    var participantIds = new List<string> { __instance.ThingID };
+                    if (dinfo.HasValue && dinfo.Value.Instigator is Pawn killer)
+                    {
+                        participantIds.Add(killer.ThingID);
+                    }
+                    
+                    StoryContext.Instance.RecordHistoricalEvent(
+                        $"{__instance.Name?.ToStringShort ?? "Unknown"} died",
+                        "Death",
+                        significance: 3.0f,
+                        keywords: keywords,
+                        participantIds: participantIds
+                    );
+                }
             }
             catch (Exception ex)
             {
@@ -200,6 +225,27 @@ namespace AINarrator
                 }
                 
                 StoryContext.Instance?.RecordRecruitment(__instance, method);
+                
+                // Phase 2: Record as historical event
+                if (StoryContext.Instance != null)
+                {
+                    var keywords = new List<string> { __instance.Name?.ToStringShort ?? "Unknown", "Recruitment" };
+                    var participantIds = new List<string> { __instance.ThingID };
+                    
+                    if (recruiter != null)
+                    {
+                        keywords.Add(recruiter.Name?.ToStringShort ?? "");
+                        participantIds.Add(recruiter.ThingID);
+                    }
+                    
+                    StoryContext.Instance.RecordHistoricalEvent(
+                        $"{__instance.Name?.ToStringShort ?? "Unknown"} joined the colony ({method})",
+                        "Recruitment",
+                        significance: 1.5f,
+                        keywords: keywords,
+                        participantIds: participantIds
+                    );
+                }
             }
             catch (Exception ex)
             {
@@ -419,6 +465,27 @@ namespace AINarrator
                     tracker.Heroes.Take(3).ToList()
                 );
                 
+                // Phase 2: Record as historical event
+                if (StoryContext.Instance != null)
+                {
+                    var keywords = new List<string> { tracker.BattleType, tracker.EnemyFaction };
+                    keywords.AddRange(tracker.Heroes.Take(3));
+                    
+                    var participantIds = tracker.EnemyPawns.ToList();
+                    var colonists = Find.CurrentMap?.mapPawns?.FreeColonists?.Select(c => c.ThingID).ToList() ?? new List<string>();
+                    participantIds.AddRange(colonists);
+                    
+                    float significance = 2.0f + (tracker.ColonistCasualties * 0.5f) + (tracker.EnemiesKilled * 0.1f);
+                    
+                    StoryContext.Instance.RecordHistoricalEvent(
+                        $"{tracker.BattleType} by {tracker.EnemyFaction}: {tracker.EnemiesKilled} enemies killed, {tracker.ColonistCasualties} casualties",
+                        tracker.BattleType,
+                        significance: significance,
+                        keywords: keywords,
+                        participantIds: participantIds
+                    );
+                }
+                
                 // Record heroic actions for top performers
                 // Use a snapshot of colonists to avoid collection issues
                 var freeColonists = Find.CurrentMap?.mapPawns?.FreeColonists?.ToList();
@@ -499,6 +566,147 @@ namespace AINarrator
             catch (Exception ex)
             {
                 Log.Warning($"[AI Narrator] Error tracking proposal: {ex.Message}");
+            }
+        }
+        
+        #endregion
+        
+        #region Phase 2: Nemesis System
+        
+        /// <summary>
+        /// Detect when hostile pawns flee the map (potential Nemesis candidates).
+        /// </summary>
+        [HarmonyPatch(typeof(Pawn), nameof(Pawn.ExitMap))]
+        [HarmonyPrefix]
+        public static void Pawn_ExitMap_Prefix(Pawn __instance, bool allowedToJoinOrCreateCaravan)
+        {
+            try
+            {
+                // Check if hostile and fleeing (not forming caravan)
+                if (__instance?.HostileTo(Faction.OfPlayer) == true && !allowedToJoinOrCreateCaravan)
+                {
+                    NemesisTracker.OnHostilePawnExit(__instance, fled: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[AI Narrator] Error in ExitMap patch: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Inject Nemesis pawns into raid generation.
+        /// </summary>
+        [HarmonyPatch(typeof(PawnGroupMakerUtility), nameof(PawnGroupMakerUtility.GeneratePawns))]
+        [HarmonyPostfix]
+        public static void PawnGroupMaker_GeneratePawns_Postfix(PawnGroupMakerParms parms, ref IEnumerable<Pawn> __result)
+        {
+            try
+            {
+                if (parms?.faction == null) return;
+                if (__result == null) return;
+                
+                // Check if this faction has an active Nemesis
+                var nemesis = NemesisTracker.GetActiveNemesisForFaction(parms.faction);
+                if (nemesis == null || nemesis.IsRetired) return;
+                
+                // Check if Nemesis should appear (not too soon after last encounter)
+                int daysSinceLastSeen = GenDate.DaysPassed - nemesis.LastSeenDay;
+                if (daysSinceLastSeen < 5) return; // Don't spawn too frequently
+                
+                // Spawn Nemesis
+                // Note: PawnGroupMakerParms may not have direct target access
+                // Use current map as fallback
+                Map targetMap = Find.CurrentMap;
+                if (targetMap == null) return;
+                
+                var nemesisPawn = NemesisTracker.SpawnNemesisPawn(nemesis, targetMap);
+                if (nemesisPawn != null)
+                {
+                    // Add to result
+                    __result = __result.Concat(new[] { nemesisPawn });
+                    
+                    // Update encounter count
+                    nemesis.EncounterCount++;
+                    nemesis.LastSeenDay = GenDate.DaysPassed;
+                    
+                    // Retire after 3 encounters
+                    if (nemesis.EncounterCount >= 3)
+                    {
+                        StoryContext.Instance?.RetireNemesis(nemesis.PawnId, "Too many encounters");
+                    }
+                    
+                    Log.Message($"[AI Narrator] Injected Nemesis {nemesis.Name} into {parms.faction.Name} raid (encounter #{nemesis.EncounterCount})");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[AI Narrator] Error injecting Nemesis: {ex.Message}");
+            }
+        }
+        
+        #endregion
+        
+        #region Phase 2: Legends System
+        
+        /// <summary>
+        /// Detect when Masterwork or Legendary quality is set on artwork.
+        /// </summary>
+        [HarmonyPatch(typeof(CompQuality), nameof(CompQuality.SetQuality))]
+        [HarmonyPostfix]
+        public static void CompQuality_SetQuality_Postfix(CompQuality __instance, QualityCategory q)
+        {
+            try
+            {
+                if (q < QualityCategory.Masterwork) return;
+                
+                var thing = __instance.parent;
+                if (thing == null) return;
+                
+                var compArt = thing.TryGetComp<CompArt>();
+                if (compArt == null) return;
+                
+                LegendTracker.OnMasterworkCreated(thing, compArt, q);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[AI Narrator] Error in CompQuality patch: {ex.Message}");
+            }
+        }
+        
+        #endregion
+        
+        #region Phase 2: Trauma System
+        
+        /// <summary>
+        /// Check for personal loss when a pawn dies.
+        /// </summary>
+        [HarmonyPatch(typeof(Pawn), nameof(Pawn.Kill))]
+        [HarmonyPostfix]
+        public static void Pawn_Kill_Postfix_ForTrauma(Pawn __instance, DamageInfo? dinfo)
+        {
+            try
+            {
+                if (__instance == null || __instance.Dead) return;
+                
+                // Check all colonists for personal loss
+                Map map = __instance.Map ?? Find.CurrentMap;
+                if (map == null) return;
+                
+                var colonists = map.mapPawns?.FreeColonists;
+                if (colonists == null) return;
+                
+                foreach (var colonist in colonists)
+                {
+                    if (colonist != null && !colonist.Dead)
+                    {
+                        TraumaTracker.CheckPersonalLoss(colonist);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[AI Narrator] Error checking personal loss: {ex.Message}");
             }
         }
         

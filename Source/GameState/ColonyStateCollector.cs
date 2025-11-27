@@ -88,6 +88,52 @@ namespace AINarrator
                 BattleHistory = StoryContext.Instance?.MajorBattles?.Select(b => b.ToString()).ToList() ?? new List<string>()
             };
             
+            // Phase 2: Deep Memory data from StoryContext
+            if (StoryContext.Instance != null)
+            {
+                // Active Nemeses
+                snapshot.ActiveNemeses = StoryContext.Instance.Nemeses
+                    .Where(n => !n.IsRetired)
+                    .Select(n => new NemesisInfo
+                    {
+                        Name = n.Name,
+                        FactionName = n.FactionName,
+                        GrudgeReason = n.GrudgeReason,
+                        GrudgeTarget = n.GrudgeTarget,
+                        EncounterCount = n.EncounterCount,
+                        LastSeenDay = n.LastSeenDay,
+                        IsRetired = n.IsRetired
+                    })
+                    .ToList();
+                
+                // Legends
+                snapshot.Legends = StoryContext.Instance.Legends
+                    .Where(l => !l.IsDestroyed)
+                    .Select(l => new LegendInfo
+                    {
+                        ArtworkLabel = l.ArtworkLabel,
+                        CreatorName = l.CreatorName,
+                        CreatedDateString = l.CreatedDateString,
+                        MythicSummary = l.MythicSummary ?? "",
+                        IsDestroyed = l.IsDestroyed
+                    })
+                    .ToList();
+                
+                // Relevant History (will be populated by HistorySearch when needed)
+                // For now, include recent historical events
+                snapshot.RelevantHistory = StoryContext.Instance.History
+                    .OrderByDescending(h => h.SignificanceScore)
+                    .ThenByDescending(h => h.DayOccurred)
+                    .Take(10)
+                    .Select(h => new HistoricalEventInfo
+                    {
+                        Summary = h.Summary,
+                        DateString = h.DateString,
+                        Significance = h.SignificanceScore
+                    })
+                    .ToList();
+            }
+            
             // Legacy colonists list for backward compatibility
             snapshot.Colonists = snapshot.ColonistDetails.Select(c => c.ToShortSummary()).ToList();
             
@@ -1193,6 +1239,11 @@ namespace AINarrator
         public List<string> DeathRecords { get; set; } = new List<string>();
         public List<string> BattleHistory { get; set; } = new List<string>();
         
+        // Phase 2: Deep Memory
+        public List<NemesisInfo> ActiveNemeses { get; set; } = new List<NemesisInfo>();
+        public List<LegendInfo> Legends { get; set; } = new List<LegendInfo>();
+        public List<HistoricalEventInfo> RelevantHistory { get; set; } = new List<HistoricalEventInfo>();
+        
         // IColonySnapshot interface implementation
         IReadOnlyList<IColonistInfo> IColonySnapshot.ColonistDetails => ColonistDetails.Cast<IColonistInfo>().ToList();
         IReadOnlyList<string> IColonySnapshot.RecentInteractions => RecentInteractions;
@@ -1209,6 +1260,48 @@ namespace AINarrator
         IRoomSummaryInfo IColonySnapshot.RoomSummary => RoomSummary;
         IReadOnlyList<string> IColonySnapshot.DeathRecords => DeathRecords;
         IReadOnlyList<string> IColonySnapshot.BattleHistory => BattleHistory;
+        IReadOnlyList<INemesisInfo> IColonySnapshot.ActiveNemeses => ActiveNemeses.Cast<INemesisInfo>().ToList();
+        IReadOnlyList<ILegendInfo> IColonySnapshot.Legends => Legends.Cast<ILegendInfo>().ToList();
+        IReadOnlyList<IHistoricalEventInfo> IColonySnapshot.RelevantHistory => RelevantHistory.Cast<IHistoricalEventInfo>().ToList();
+    }
+    
+    /// <summary>
+    /// Nemesis information for snapshot (Phase 2).
+    /// Implements INemesisInfo for shared formatting.
+    /// </summary>
+    public class NemesisInfo : INemesisInfo
+    {
+        public string Name { get; set; }
+        public string FactionName { get; set; }
+        public string GrudgeReason { get; set; }
+        public string GrudgeTarget { get; set; }
+        public int EncounterCount { get; set; }
+        public int LastSeenDay { get; set; }
+        public bool IsRetired { get; set; }
+    }
+    
+    /// <summary>
+    /// Legend information for snapshot (Phase 2).
+    /// Implements ILegendInfo for shared formatting.
+    /// </summary>
+    public class LegendInfo : ILegendInfo
+    {
+        public string ArtworkLabel { get; set; }
+        public string CreatorName { get; set; }
+        public string CreatedDateString { get; set; }
+        public string MythicSummary { get; set; }
+        public bool IsDestroyed { get; set; }
+    }
+    
+    /// <summary>
+    /// Historical Event information for snapshot (Phase 2).
+    /// Implements IHistoricalEventInfo for shared formatting.
+    /// </summary>
+    public class HistoricalEventInfo : IHistoricalEventInfo
+    {
+        public string Summary { get; set; }
+        public string DateString { get; set; }
+        public float Significance { get; set; }
     }
     
     /// <summary>

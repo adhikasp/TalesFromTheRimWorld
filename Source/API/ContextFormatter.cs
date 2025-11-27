@@ -113,6 +113,56 @@ namespace AINarrator
                 sb.AppendLine();
             }
             
+            // Phase 2: Relevant history for long-form callbacks
+            if (snapshot.RelevantHistory != null && snapshot.RelevantHistory.Any())
+            {
+                sb.AppendLine("=== RELEVANT HISTORY ===");
+                foreach (var evt in snapshot.RelevantHistory
+                             .OrderByDescending(e => e.Significance)
+                             .Take(5))
+                {
+                    sb.AppendLine($"- {evt.DateString}: {evt.Summary}");
+                }
+                sb.AppendLine();
+            }
+            
+            // Phase 2: Nemesis callouts (exclude retired rivals)
+            if (snapshot.ActiveNemeses != null && snapshot.ActiveNemeses.Any(n => !n.IsRetired))
+            {
+                sb.AppendLine("=== ACTIVE NEMESES ===");
+                foreach (var nemesis in snapshot.ActiveNemeses.Where(n => !n.IsRetired).Take(5))
+                {
+                    sb.Append($"{nemesis.Name} ({nemesis.FactionName}) - {nemesis.GrudgeReason}");
+                    if (!string.IsNullOrEmpty(nemesis.GrudgeTarget))
+                    {
+                        sb.Append($" Target: {nemesis.GrudgeTarget}.");
+                    }
+                    if (nemesis.EncounterCount > 0)
+                    {
+                        sb.Append($" Encounters: {nemesis.EncounterCount}");
+                    }
+                    if (nemesis.LastSeenDay > 0)
+                    {
+                        sb.Append($" | Last seen Day {nemesis.LastSeenDay}");
+                    }
+                    sb.AppendLine();
+                }
+                sb.AppendLine();
+            }
+            
+            // Phase 2: Colony legends/myths
+            if (snapshot.Legends != null && snapshot.Legends.Any(l => !l.IsDestroyed && !string.IsNullOrEmpty(l.MythicSummary)))
+            {
+                sb.AppendLine("=== COLONY LEGENDS ===");
+                foreach (var legend in snapshot.Legends
+                             .Where(l => !l.IsDestroyed && !string.IsNullOrEmpty(l.MythicSummary))
+                             .Take(3))
+                {
+                    sb.AppendLine($"{legend.ArtworkLabel} by {legend.CreatorName} ({legend.CreatedDateString}): {legend.MythicSummary}");
+                }
+                sb.AppendLine();
+            }
+            
             // Faction relations (most relevant ones)
             var relevantFactions = snapshot.FactionRelations
                 .Where(f => f.Goodwill != 0 || f.IsHostile)
@@ -289,6 +339,44 @@ namespace AINarrator
                 foreach (var animal in snapshot.Animals.Take(10))
                 {
                     sb.AppendLine($"- {animal}");
+                }
+                sb.AppendLine();
+            }
+            
+            // Phase 2: Relevant History
+            if (snapshot.RelevantHistory != null && snapshot.RelevantHistory.Any())
+            {
+                sb.AppendLine("=== RELEVANT HISTORY ===");
+                foreach (var evt in snapshot.RelevantHistory.OrderByDescending(e => e.Significance).Take(5))
+                {
+                    sb.AppendLine($"- {evt.DateString}: {evt.Summary}");
+                }
+                sb.AppendLine();
+            }
+            
+            // Phase 2: Active Nemeses
+            if (snapshot.ActiveNemeses != null && snapshot.ActiveNemeses.Any(n => !n.IsRetired))
+            {
+                sb.AppendLine("=== ACTIVE NEMESES ===");
+                foreach (var nemesis in snapshot.ActiveNemeses.Where(n => !n.IsRetired))
+                {
+                    sb.Append($"{nemesis.Name} ({nemesis.FactionName}) - {nemesis.GrudgeReason}");
+                    if (!string.IsNullOrEmpty(nemesis.GrudgeTarget))
+                    {
+                        sb.Append($" Holds a grudge against {nemesis.GrudgeTarget}.");
+                    }
+                    sb.AppendLine();
+                }
+                sb.AppendLine();
+            }
+            
+            // Phase 2: Colony Legends
+            if (snapshot.Legends != null && snapshot.Legends.Any(l => !l.IsDestroyed && !string.IsNullOrEmpty(l.MythicSummary)))
+            {
+                sb.AppendLine("=== COLONY LEGENDS ===");
+                foreach (var legend in snapshot.Legends.Where(l => !l.IsDestroyed && !string.IsNullOrEmpty(l.MythicSummary)).Take(3))
+                {
+                    sb.AppendLine($"{legend.ArtworkLabel} by {legend.CreatorName} ({legend.CreatedDateString}): {legend.MythicSummary}");
                 }
                 sb.AppendLine();
             }

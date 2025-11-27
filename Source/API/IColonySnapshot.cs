@@ -62,6 +62,47 @@ namespace AINarrator
         // Historical data
         IReadOnlyList<string> DeathRecords { get; }
         IReadOnlyList<string> BattleHistory { get; }
+        
+        // Phase 2: Deep Memory
+        IReadOnlyList<INemesisInfo> ActiveNemeses { get; }
+        IReadOnlyList<ILegendInfo> Legends { get; }
+        IReadOnlyList<IHistoricalEventInfo> RelevantHistory { get; }
+    }
+    
+    /// <summary>
+    /// Interface for Nemesis information (Phase 2).
+    /// </summary>
+    public interface INemesisInfo
+    {
+        string Name { get; }
+        string FactionName { get; }
+        string GrudgeReason { get; }
+        string GrudgeTarget { get; }
+        int EncounterCount { get; }
+        int LastSeenDay { get; }
+        bool IsRetired { get; }
+    }
+    
+    /// <summary>
+    /// Interface for Legend information (Phase 2).
+    /// </summary>
+    public interface ILegendInfo
+    {
+        string ArtworkLabel { get; }
+        string CreatorName { get; }
+        string CreatedDateString { get; }
+        string MythicSummary { get; }
+        bool IsDestroyed { get; }
+    }
+    
+    /// <summary>
+    /// Interface for Historical Event information (Phase 2).
+    /// </summary>
+    public interface IHistoricalEventInfo
+    {
+        string Summary { get; }
+        string DateString { get; }
+        float Significance { get; }
     }
     
     /// <summary>

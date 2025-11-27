@@ -31,6 +31,11 @@ namespace AINarrator
         public List<string> SignificantInteractions = new List<string>();
         public List<string> HeroicActions = new List<string>();
         
+        // Phase 2: Deep Memory collections
+        public List<NemesisProfile> Nemeses = new List<NemesisProfile>();
+        public List<Legend> Legends = new List<Legend>();
+        public List<HistoricalEvent> History = new List<HistoricalEvent>();
+        
         // API call tracking for rate limiting
         public int CallsToday = 0;
         public int LastCallDay = -1;
@@ -43,6 +48,11 @@ namespace AINarrator
         private const int MAX_RECRUITED_PAWNS = 50;
         private const int MAX_SIGNIFICANT_INTERACTIONS = 30;
         private const int MAX_HEROIC_ACTIONS = 30;
+        
+        // Phase 2 constants
+        private const int MAX_NEMESES = 10;
+        private const int MAX_LEGENDS = 20;
+        private const int MAX_HISTORY = 100;
         
         private bool initialized = false;
         
@@ -76,6 +86,19 @@ namespace AINarrator
                     Log.Warning($"[AI Narrator] Could not create founding entry: {ex.Message}");
                 }
             }
+            
+            // Phase 2: Check for trauma events (every 250 ticks = ~4 seconds)
+            if (Find.TickManager != null && Find.TickManager.TicksGame % 250 == 0)
+            {
+                try
+                {
+                    TraumaTracker.OnTick();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"[AI Narrator] Error in TraumaTracker: {ex.Message}");
+                }
+            }
         }
         
         public override void ExposeData()
@@ -96,6 +119,11 @@ namespace AINarrator
             Scribe_Collections.Look(ref SignificantInteractions, "significantInteractions", LookMode.Value);
             Scribe_Collections.Look(ref HeroicActions, "heroicActions", LookMode.Value);
             
+            // Phase 2: Deep Memory collections
+            Scribe_Collections.Look(ref Nemeses, "nemeses", LookMode.Deep);
+            Scribe_Collections.Look(ref Legends, "legends", LookMode.Deep);
+            Scribe_Collections.Look(ref History, "history", LookMode.Deep);
+            
             // Ensure collections are initialized after loading
             if (JournalEntries == null) JournalEntries = new List<JournalEntry>();
             if (RecentEvents == null) RecentEvents = new List<string>();
@@ -105,6 +133,9 @@ namespace AINarrator
             if (RecruitedPawns == null) RecruitedPawns = new List<string>();
             if (SignificantInteractions == null) SignificantInteractions = new List<string>();
             if (HeroicActions == null) HeroicActions = new List<string>();
+            if (Nemeses == null) Nemeses = new List<NemesisProfile>();
+            if (Legends == null) Legends = new List<Legend>();
+            if (History == null) History = new List<HistoricalEvent>();
         }
         
         #region Journal Entries
@@ -460,6 +491,139 @@ namespace AINarrator
         public List<BattleRecord> GetBattlesWithFaction(string factionName)
         {
             return MajorBattles.Where(b => b.EnemyFaction == factionName).ToList();
+        }
+        
+        #endregion
+        
+        #region Phase 2: Deep Memory Methods
+        
+        /// <summary>
+        /// Add a Nemesis profile. Prunes oldest if over limit.
+        /// </summary>
+        public void AddNemesis(NemesisProfile nemesis)
+        {
+            if (nemesis == null) return;
+            
+            // Check if already exists
+            var existing = Nemeses.FirstOrDefault(n => n.PawnId == nemesis.PawnId);
+            if (existing != null)
+            {
+                // Update existing
+                existing.EncounterCount++;
+                existing.LastSeenDay = GenDate.DaysPassed;
+                return;
+            }
+            
+            Nemeses.Add(nemesis);
+            
+            // Prune if over limit (remove oldest inactive)
+            while (Nemeses.Count > MAX_NEMESES)
+            {
+                var toRemove = Nemeses
+                    .Where(n => !n.IsRetired)
+                    .OrderBy(n => n.LastSeenDay)
+                    .FirstOrDefault();
+                
+                if (toRemove == null)
+                {
+                    // All are retired, remove oldest retired
+                    toRemove = Nemeses.OrderBy(n => n.LastSeenDay).First();
+                }
+                
+                Nemeses.Remove(toRemove);
+            }
+        }
+        
+        /// <summary>
+        /// Get active Nemesis for a faction.
+        /// </summary>
+        public NemesisProfile GetActiveNemesisForFaction(Faction faction)
+        {
+            if (faction == null) return null;
+            
+            return Nemeses
+                .Where(n => !n.IsRetired && 
+                           (n.FactionId == faction.def.defName || n.FactionName == faction.Name))
+                .OrderByDescending(n => n.EncounterCount)
+                .FirstOrDefault();
+        }
+        
+        /// <summary>
+        /// Retire a Nemesis (mark as no longer spawning).
+        /// </summary>
+        public void RetireNemesis(string pawnId, string reason)
+        {
+            var nemesis = Nemeses.FirstOrDefault(n => n.PawnId == pawnId);
+            if (nemesis != null)
+            {
+                nemesis.IsRetired = true;
+                nemesis.RetiredReason = reason;
+            }
+        }
+        
+        /// <summary>
+        /// Add a Legend. Prunes oldest if over limit.
+        /// </summary>
+        public void AddLegend(Legend legend)
+        {
+            if (legend == null) return;
+            
+            Legends.Add(legend);
+            
+            // Prune if over limit
+            while (Legends.Count > MAX_LEGENDS)
+            {
+                Legends.RemoveAt(0);
+            }
+        }
+        
+        /// <summary>
+        /// Mark a Legend as destroyed.
+        /// </summary>
+        public void MarkLegendDestroyed(string legendId)
+        {
+            var legend = Legends.FirstOrDefault(l => l.Id == legendId);
+            if (legend != null)
+            {
+                legend.IsDestroyed = true;
+            }
+        }
+        
+        /// <summary>
+        /// Add a historical event. Prunes by significance if over limit.
+        /// </summary>
+        public void AddHistoricalEvent(HistoricalEvent evt)
+        {
+            if (evt == null) return;
+            
+            History.Add(evt);
+            
+            // Prune if over limit (remove lowest significance)
+            while (History.Count > MAX_HISTORY)
+            {
+                var toRemove = History.OrderBy(e => e.SignificanceScore).First();
+                History.Remove(toRemove);
+            }
+        }
+        
+        /// <summary>
+        /// Record a historical event from a simple string (backward compatibility).
+        /// </summary>
+        public void RecordHistoricalEvent(string summary, string eventType, float significance = 1.0f, List<string> keywords = null, List<string> participantIds = null)
+        {
+            var evt = new HistoricalEvent
+            {
+                Id = Guid.NewGuid().ToString(),
+                Summary = summary,
+                EventType = eventType ?? "Event",
+                DayOccurred = GenDate.DaysPassed,
+                DateString = GetCurrentDateString(),
+                Keywords = keywords ?? new List<string>(),
+                ParticipantIds = participantIds ?? new List<string>(),
+                SignificanceScore = significance
+            };
+            
+            AddHistoricalEvent(evt);
         }
         
         #endregion

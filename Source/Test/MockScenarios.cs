@@ -378,6 +378,41 @@ namespace AINarrator.Test
                     Mortars = 1,
                     PowerGeneration = 3600,
                     ResearchCompleted = "Gun turrets"
+                },
+                
+                // Phase 2: Deep Memory
+                ActiveNemeses = new List<MockNemesis>
+                {
+                    new MockNemesis
+                    {
+                        Name = "Razor",
+                        FactionName = "The Forsaken Raiders",
+                        GrudgeReason = "Wounded by Marcus",
+                        GrudgeTarget = "Marcus",
+                        EncounterCount = 1,
+                        LastSeenDay = 38,
+                        IsRetired = false
+                    }
+                },
+                Legends = new List<MockLegend>
+                {
+                    new MockLegend
+                    {
+                        ArtworkLabel = "Masterwork marble statue",
+                        CreatorName = "Chen Wei",
+                        CreatedDateString = "Jugust, Year 5500",
+                        MythicSummary = "", // Masterwork, no mythic summary
+                        IsDestroyed = false
+                    }
+                },
+                RelevantHistory = new List<MockHistoricalEvent>
+                {
+                    new MockHistoricalEvent
+                    {
+                        Summary = "Raid by Forsaken Raiders - Victory, 2 prisoners captured",
+                        DateString = "Day 38",
+                        Significance = 0.7f
+                    }
                 }
             };
         }
@@ -562,6 +597,61 @@ namespace AINarrator.Test
                     Mortars = 6,
                     PowerGeneration = 28000,
                     ResearchCompleted = "Fabrication, charged shot"
+                },
+                
+                // Phase 2: Deep Memory
+                ActiveNemeses = new List<MockNemesis>
+                {
+                    new MockNemesis
+                    {
+                        Name = "Razor",
+                        FactionName = "The Forsaken Raiders",
+                        GrudgeReason = "Killed Rodrigo",
+                        GrudgeTarget = "Marcus",
+                        EncounterCount = 2,
+                        LastSeenDay = 175,
+                        IsRetired = false
+                    }
+                },
+                Legends = new List<MockLegend>
+                {
+                    new MockLegend
+                    {
+                        ArtworkLabel = "Legendary charge rifle",
+                        CreatorName = "Chen Wei",
+                        CreatedDateString = "Septober, Year 5501",
+                        MythicSummary = "Forged in the fires of a hundred battles, this weapon is said to never miss its mark.",
+                        IsDestroyed = false
+                    },
+                    new MockLegend
+                    {
+                        ArtworkLabel = "Masterwork marine armor",
+                        CreatorName = "Chen Wei",
+                        CreatedDateString = "Augimay, Year 5501",
+                        MythicSummary = "",
+                        IsDestroyed = false
+                    }
+                },
+                RelevantHistory = new List<MockHistoricalEvent>
+                {
+                    new MockHistoricalEvent
+                    {
+                        Summary = "Major raid by Forsaken Raiders - ongoing",
+                        DateString = "Day 180",
+                        Significance = 0.9f
+                    },
+                    new MockHistoricalEvent
+                    {
+                        Summary = "Marriage: Marcus and Yuki",
+                        DateString = "Day 175",
+                        Significance = 0.6f
+                    },
+                    new MockHistoricalEvent
+                    {
+                        Summary = "Birth: Baby Maria (Elena & Jake)",
+                        DateString = "Day 170",
+                        Significance = 0.7f
+                    }
                 }
             };
         }
@@ -752,6 +842,11 @@ namespace AINarrator.Test
         public MockInfrastructure Infrastructure { get; set; }
         public MockRoomSummary RoomSummary { get; set; } = new MockRoomSummary();
         
+        // Phase 2: Deep Memory
+        public List<MockNemesis> ActiveNemeses { get; set; } = new List<MockNemesis>();
+        public List<MockLegend> Legends { get; set; } = new List<MockLegend>();
+        public List<MockHistoricalEvent> RelevantHistory { get; set; } = new List<MockHistoricalEvent>();
+        
         // IColonySnapshot interface implementation
         IReadOnlyList<IColonistInfo> IColonySnapshot.ColonistDetails => Colonists.Cast<IColonistInfo>().ToList();
         IReadOnlyList<string> IColonySnapshot.RecentInteractions => RecentInteractions;
@@ -768,6 +863,9 @@ namespace AINarrator.Test
         IRoomSummaryInfo IColonySnapshot.RoomSummary => RoomSummary;
         IReadOnlyList<string> IColonySnapshot.DeathRecords => DeathRecords;
         IReadOnlyList<string> IColonySnapshot.BattleHistory => BattleHistory;
+        IReadOnlyList<INemesisInfo> IColonySnapshot.ActiveNemeses => ActiveNemeses.Cast<INemesisInfo>().ToList();
+        IReadOnlyList<ILegendInfo> IColonySnapshot.Legends => Legends.Cast<ILegendInfo>().ToList();
+        IReadOnlyList<IHistoricalEventInfo> IColonySnapshot.RelevantHistory => RelevantHistory.Cast<IHistoricalEventInfo>().ToList();
     }
 
     /// <summary>
@@ -865,6 +963,42 @@ namespace AINarrator.Test
         public List<string> Highlights { get; set; } = new List<string>();
         
         IReadOnlyList<string> IRoomSummaryInfo.Highlights => Highlights;
+    }
+    
+    /// <summary>
+    /// Mock Nemesis implementing INemesisInfo for shared formatting (Phase 2).
+    /// </summary>
+    public class MockNemesis : INemesisInfo
+    {
+        public string Name { get; set; }
+        public string FactionName { get; set; }
+        public string GrudgeReason { get; set; }
+        public string GrudgeTarget { get; set; }
+        public int EncounterCount { get; set; }
+        public int LastSeenDay { get; set; }
+        public bool IsRetired { get; set; }
+    }
+    
+    /// <summary>
+    /// Mock Legend implementing ILegendInfo for shared formatting (Phase 2).
+    /// </summary>
+    public class MockLegend : ILegendInfo
+    {
+        public string ArtworkLabel { get; set; }
+        public string CreatorName { get; set; }
+        public string CreatedDateString { get; set; }
+        public string MythicSummary { get; set; }
+        public bool IsDestroyed { get; set; }
+    }
+    
+    /// <summary>
+    /// Mock Historical Event implementing IHistoricalEventInfo for shared formatting (Phase 2).
+    /// </summary>
+    public class MockHistoricalEvent : IHistoricalEventInfo
+    {
+        public string Summary { get; set; }
+        public string DateString { get; set; }
+        public float Significance { get; set; }
     }
 
     #endregion
