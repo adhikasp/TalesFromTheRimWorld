@@ -17,6 +17,10 @@
     
     <!-- Suppress warnings about missing XML documentation -->
     <NoWarn>CS1591</NoWarn>
+    
+    <!-- Disable auto-generated assembly info to avoid duplicate attribute errors -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
   <!-- Exclude Test project files from this build -->
